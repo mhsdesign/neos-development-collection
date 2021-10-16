@@ -26,7 +26,7 @@ class FusionParserTest extends FunctionalTestCase
      */
     public function parserHandlesExpressionsThatReturnStrings()
     {
-        $parser = new Parser();
+        $parser = new Parser;
         $actualAst = $parser->parse('value = TestPassthroughDsl`"StringExpressionValue"`');
         $expectedAst = [
             'value' => 'StringExpressionValue'

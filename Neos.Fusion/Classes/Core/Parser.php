@@ -1,4 +1,5 @@
 <?php
+
 namespace Neos\Fusion\Core;
 
 /*
@@ -11,246 +12,41 @@ namespace Neos\Fusion\Core;
  * source code.
  */
 
-use Neos\Eel\Package;
 use Neos\Flow\Annotations as Flow;
-use Neos\Fusion\Exception;
-use Neos\Utility\Arrays;
 use Neos\Fusion;
+use Neos\Fusion\Exception;
+
+//set_time_limit(2);
 
 /**
  * The Fusion Parser
  *
  * @api
  */
-class Parser implements ParserInterface
+// class Parser implements ParserInterface
+class Parser
 {
-    const SCAN_PATTERN_COMMENT = '/
-		^\s*                       # beginning of line; with numerous whitespace
-		(
-			\#                     # this can be a comment char
-			|\/\/                  # or two slashes
-			|\/\*                  # or slash followed by star
-		)
-	/x';
-    const SCAN_PATTERN_OPENINGCONFINEMENT = '/
-		^\s*                      # beginning of line; with numerous whitespace
-		(?:                       # first part of a TS path
-			@?[a-zA-Z0-9:_\-]+              # Unquoted key
-			|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-			|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-			|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-		)
-		(?:                                 # followed by multiple .<fusionPathPart> sections:
-			\.
-			(?:
-				@?[a-zA-Z0-9:_\-]+              # Unquoted key
-				|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-				|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-				|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-			)
-		)*
-		\s*                       # followed by multiple whitespace
-		\{                        # followed by opening {
-		\s*$                      # followed by multiple whitespace (possibly) and nothing else.
-	/x';
-
-    const SCAN_PATTERN_CLOSINGCONFINEMENT = '/
-		^\s*                      # beginning of line; with numerous whitespace
-		\}                        # closing confinement
-		\s*$                      # followed by multiple whitespace (possibly) and nothing else.
-	/x';
-    const SCAN_PATTERN_DECLARATION = '/
-		^\s*                      # beginning of line; with numerous whitespace
-		(include|namespace)       # followed by namespace or include
-		\s*:                      # followed by numerous whitespace and a colon
-	/x';
-    const SCAN_PATTERN_OBJECTDEFINITION = '/
-		^\s*                             # beginning of line; with numerous whitespace
-		(?:
-			[a-zA-Z0-9.():@_\-]+         # Unquoted key
-			|"(?:\\\"|[^"])+"            # Double quoted key, supporting more characters like underscore and at sign
-			|\'(?:\\\\\'|[^\'])+\'       # Single quoted key, supporting more characters like underscore and at sign
-		)+
-		\s*
-		(=|<|>)
-	/x';
-    const SCAN_PATTERN_OBJECTPATH = '/
-		^
-			\.?
-			(?:
-				@?[a-zA-Z0-9:_\-]+              # Unquoted key
-				|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-				|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-				|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-			)
-			(?:
-				\.
-				(?:
-					@?[a-zA-Z0-9:_\-]+              # Unquoted key
-					|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-					|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-					|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-				)
-			)*
-		$
-	/x';
-
-    /**
-     * Split an object path like "foo.bar.baz.quux", "foo.'bar.baz.quux'" or "foo.prototype(Neos.Fusion:Something).bar.baz"
-     * at the dots (but not the dots inside the prototype definition prototype(...) or dots inside quotes)
-     */
-    const SPLIT_PATTERN_OBJECTPATH = '/
-        (                       # Matches area if:
-            prototype\(.*?\)        # inside prototype(...),
-            |"(?:\\\"|[^"])+"       # inside double quotes - respect escape,
-            |\'(?:\\\\\'|[^\'])+\'  # inside single quotes - respect escape
-        )
-        (*SKIP)(*FAIL)          # skip, when the preceding matches and fail (dont include them in the match)
-        |\.                     # for what was not matched, we split at dot characters...
-	/x';
-
-    /**
-     * Analyze an object path segment like "foo" or "prototype(Neos.Fusion:Something)"
-     * and detect the latter
-     */
-    const SCAN_PATTERN_OBJECTPATHSEGMENT_IS_PROTOTYPE = '/
-		^
-			prototype\([a-zA-Z0-9:.]+\)
-		$
-	/x';
-
-    const SPLIT_PATTERN_COMMENTTYPE = '/.*?(#|\/\/|\/\*|\*\/).*/';  // we need to be "non-greedy" here, since we need the first comment type that matches
-    const SPLIT_PATTERN_DECLARATION = '/(?P<declarationType>[a-zA-Z]+[a-zA-Z0-9]*)\s*:\s*(["\']{0,1})(?P<declaration>.*)\\2/';
-    const SPLIT_PATTERN_NAMESPACEDECLARATION = '/\s*(?P<alias>[a-zA-Z]+[a-zA-Z0-9]*)\s*=\s*(?P<packageKey>[a-zA-Z0-9\.]+)\s*$/';
-    const SPLIT_PATTERN_OBJECTDEFINITION = '/
-		^\s*                      # beginning of line; with numerous whitespace
-		(?P<ObjectPath>           # begin ObjectPath
-
-			\.?
-			(?:
-				@?[a-zA-Z0-9:_\-]+              # Unquoted key
-				|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-				|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-				|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-			)
-			(?:
-				\.
-				(?:
-					@?[a-zA-Z0-9:_\-]+              # Unquoted key
-					|"(?:\\\"|[^"])+"               # Double quoted key, supporting more characters like underscore and at sign
-					|\'(?:\\\\\'|[^\'])+\'          # Single quoted key, supporting more characters like underscore and at sign
-					|prototype\([a-zA-Z0-9.:]+\)    # Prototype definition
-				)
-			)*
-		)
-		\s*
-		(?P<Operator>             # the operators which are supported
-			=|<|>
-		)
-		\s*
-		(?P<Value>                # the remaining line inside the value
-			.*?
-		)
-		\s*
-		(?P<OpeningConfinement>
-			(?<![${])\{           # optionally followed by an opening confinement
-		)?
-		\s*$
-	/x';
-    const SPLIT_PATTERN_VALUENUMBER = '/^\s*-?\d+\s*$/';
-    const SPLIT_PATTERN_VALUEFLOATNUMBER = '/^\s*-?\d+(\.\d+)?\s*$/';
-    const SPLIT_PATTERN_VALUELITERAL = '/^"([^"\\\\]*(?>\\\\.[^"\\\\]*)*)"|\'([^\'\\\\]*(?>\\\\.[^\'\\\\]*)*)\'$/';
-    const SPLIT_PATTERN_VALUEMULTILINELITERAL = '/
-		^(
-			(?P<DoubleQuoteChar>")
-			(?P<DoubleQuoteValue>
-				(?:\\\\.
-				|
-				[^\\\\"])*
-			)
-			|
-			(?P<SingleQuoteChar>\')
-			(?P<SingleQuoteValue>
-				(?:\\\\.
-				|
-				[^\\\\\'])*
-			)
-		)$/x';
-    const SPLIT_PATTERN_VALUEBOOLEAN = '/^\s*(TRUE|FALSE|true|false)\s*$/';
-    const SPLIT_PATTERN_VALUENULL = '/^\s*(NULL|null)\s*$/';
-
-    const SCAN_PATTERN_VALUEOBJECTTYPE = '/
-		^\s*                      # beginning of line; with numerous whitespace
-		(?:                       # non-capturing submatch containing the namespace followed by ":" (optional)
-			(?P<namespace>
-				[a-zA-Z0-9.]+     # namespace alias (cms, …) or fully qualified namespace (Neos.Neos, …)
-			)
-			:                     # : as delimiter
-		)?
-		(?P<unqualifiedType>
-			[a-zA-Z0-9.]+         # the unqualified type
-		)
-		\s*$
-	/x';
-
-    const SCAN_PATTERN_DSL_EXPRESSION_START = '/^[a-zA-Z0-9\.]+`/';
-    const SPLIT_PATTERN_DSL_EXPRESSION = '/^(?P<identifier>[a-zA-Z0-9\.]+)`(?P<code>[^`]*)`$/';
-
-    /**
-     * Reserved parse tree keys for internal usage.
-     *
-     * @var array
-     */
-    public static $reservedParseTreeKeys = ['__meta', '__prototypes', '__stopInheritanceChain', '__prototypeObjectName', '__prototypeChain', '__value', '__objectType', '__eelExpression'];
-
-    /**
-     * @Flow\Inject
-     * @var \Neos\Flow\ObjectManagement\ObjectManagerInterface
-     */
-    protected $objectManager;
-
-    /**
-     * @Flow\Inject
-     * @var DslFactory
-     */
-    protected $dslFactory;
-
     /**
      * The Fusion object tree, created by this parser.
      * @var array
      */
     protected $objectTree = [];
 
-    /**
-     * The line number which is currently processed
-     * @var integer
-     */
-    protected $currentLineNumber = 1;
+
+    protected array $tokenStack = [];
 
     /**
-     * An array of strings of the source code which has
-     * @var array
-     */
-    protected $currentSourceCodeLines = [];
-
-    /**
-     * The current object path context as defined by confinements.
+     * For nested blocks to determine the prefix
      * @var array
      */
     protected $currentObjectPathStack = [];
 
     /**
-     * Determines if a block comment is currently active or not.
-     * @var boolean
+     * @Flow\Inject
+     * @var Lexer
      */
-    protected $currentBlockCommentState = false;
+    protected $lexer;
 
-    /**
-     * An optional context path which is used as a prefix for inclusion of further
-     * Fusion files
-     * @var string
-     */
-    protected $contextPathAndFilename = null;
 
     /**
      * Namespaces used for resolution of Fusion object names. These namespaces
@@ -278,550 +74,613 @@ class Parser implements ParserInterface
      * @throws Fusion\Exception
      * @api
      */
-    public function parse($sourceCode, $contextPathAndFilename = null, array $objectTreeUntilNow = [], $buildPrototypeHierarchy = true)
+    public function parse($sourceCode)
     {
-        if (!is_string($sourceCode)) {
+        if (is_string($sourceCode) === false) {
             throw new Fusion\Exception('Cannot parse Fusion - $sourceCode must be of type string!', 1180203775);
         }
-        $this->initialize();
-        $this->objectTree = $objectTreeUntilNow;
-        $this->contextPathAndFilename = $contextPathAndFilename;
-        $sourceCode = str_replace("\r\n", "\n", $sourceCode);
-        $this->currentSourceCodeLines = explode(chr(10), $sourceCode);
-        while (($fusionLine = $this->getNextfusionLine()) !== false) {
-            $this->parseFusionLine($fusionLine);
-        }
 
-        if ($buildPrototypeHierarchy) {
-            $this->buildPrototypeHierarchy();
-        }
+        $this->lexer->init($sourceCode);
+        $this->Program();
+
+        FusionAst::buildPrototypeHierarchy($this->objectTree);
+
         return $this->objectTree;
     }
 
     /**
-     * Sets the given alias to the specified namespace.
-     *
-     * The namespaces defined through this setter or through a "namespace" declaration
-     * in one of the Fusions are used to resolve a fully qualified Fusion
-     * object name while parsing Fusion code.
-     *
-     * The alias is the handle by wich the namespace can be referred to.
-     * The namespace is, by convention, a package key which must correspond to a
-     * namespace used in the prototype definitions for Fusion object types.
-     *
-     * The special alias "default" is used as a fallback for resolution of unqualified
-     * Fusion object types.
-     *
-     * @param string $alias An alias for the given namespace, for example "neos"
-     * @param string $namespace The namespace, for example "Neos.Neos"
-     * @return void
-     * @throws Fusion\Exception
-     * @api
+     * Generate a token via the lexer. It caches the result which will be returned in the future until the token is consumed.
+     * If the Lexer set the type to 'NO_TOKEN_FOUND' peek() will ask the lexer again. (Usefull when the Lexer State is changed)
      */
-    public function setObjectTypeNamespace($alias, $namespace)
+    public function peek(array $virtualTokens = null): array
     {
-        if (!is_string($alias)) {
-            throw new Fusion\Exception('The alias of a namespace must be valid string!' . $this->renderCurrentFileAndLineInformation(), 1180600696);
+        // the token stack holds all lexed tokens and those combined to virtual tokens, the first element reset()
+        // will hold the latest. The first el will be cleaned with consume();
+        if (empty($this->tokenStack)) {
+            $this->tokenStack[] = $this->lexer->getNextToken();
         }
-        if (!is_string($namespace)) {
-            throw new Fusion\Exception('The namespace must be of type string!' . $this->renderCurrentFileAndLineInformation(), 1180600697);
+
+        $currentToken = reset($this->tokenStack);
+
+        if ($virtualTokens === null ) {
+            return $currentToken;
         }
-        $this->objectTypeNamespaces[$alias] = $namespace;
+
+        foreach ($virtualTokens as $virtualToken) {
+
+            foreach ($virtualToken as $virtualTokenType => $tokenTypesToCombine) {
+
+                if (in_array($currentToken['type'], $tokenTypesToCombine)) {
+
+                    $combinedTokenValue = $currentToken['value'];
+
+                    $lexedToken = $this->lexer->getNextToken();
+                    while (in_array($lexedToken['type'], $tokenTypesToCombine)) {
+                        $combinedTokenValue .= $lexedToken['value'];
+                        $lexedToken = $this->lexer->getNextToken();
+                    }
+
+                    // we cobined it remove the current token:
+                    array_shift($this->tokenStack);
+
+
+                    // add token to the token stack in second position than the combined if the getNextToken was not combined.
+
+                    // ignore ws
+                    // null => will be "" in array
+                    if ($virtualTokenType === 0) {
+                        $this->tokenStack[] = $lexedToken;
+                        return $this->peek($virtualTokens);
+                    }
+
+
+                    $this->tokenStack[] = [
+                        'type' => $virtualTokenType,
+                        'value' => $combinedTokenValue
+                    ];
+
+                    // the lexed Token was not combined to a $virtualTokenType and thus need to be preserved
+                    $this->tokenStack[] = $lexedToken;
+
+                    return reset($this->tokenStack);
+
+                }
+                // only first els
+                break;
+            }
+
+        }
+        return $currentToken;
     }
 
     /**
-     * Initializes the Fusion parser
-     *
-     * @return void
+     * Expects a token of a given type.
      */
-    protected function initialize()
+    protected function consume(string $tokenType = null, array $virtualTokens = null): array
     {
-        $this->currentLineNumber = 1;
-        $this->currentObjectPathStack = [];
-        $this->currentSourceCodeLines = [];
-        $this->currentBlockCommentState = false;
-        $this->objectTree = [];
+        $token = $this->peek($virtualTokens);
+
+        if ($tokenType === null)
+            $tokenType = $token['type'];
+
+        if ($token['type'] === 'EOF')
+            throw new \Error("end of input expected" . $tokenType);
+
+        if ($token['type'] !== $tokenType)
+            throw new \Exception("unexpected token: '" . json_encode($token) . "' expected: '" . $tokenType . "'");
+
+        array_shift($this->tokenStack);
+        return $token;
+    }
+
+
+    /**
+     * Checks, if the token type matches the current, if so consume it and return true.
+     */
+    protected function lazyConsume($tokenType, $virtualTokens = null): ?bool
+    {
+        $token = $this->peek($virtualTokens);
+
+        if ($token['type'] === $tokenType) {
+            $this->consume();
+            return true;
+        }
+        return false;
+    }
+
+    protected function getCurrentObjectPathPrefix(): array
+    {
+        $lastElementOfStack = end($this->currentObjectPathStack);
+        return ($lastElementOfStack !== false) ? $lastElementOfStack : [];
+    }
+
+
+    protected const IGNORE_WHITESPACE = [
+        0 => ['SPACE', 'NEWLINE']
+    ];
+    protected const IGNORE_SPACE = [
+        0 => ['SPACE']
+    ];
+    protected const IGNORE_NEWLINE = [
+        0 => ['NEWLINE']
+    ];
+    protected const VTOKEN_PATHIDENTIFIER = [
+        'V:PATHIDENTIFIER' => ['INTEGER', ':', 'a-zA-Z0-9_\-', 'ALPHANUMERIC', 'TRUE', 'FALSE', 'NULL']
+    ];
+
+    protected const VTOKEN_OBJECTNAMEPART = [
+        'V:OBJECTNAMEPART' => ['ALPHANUMERIC', '.']
+    ];
+
+
+    /**
+     * Main entry point.
+     *
+     * Program
+     *  : StatementList
+     *  ;
+     *
+     */
+    protected function Program() {
+        $this->StatementList();
     }
 
     /**
-     * Get the next, unparsed line of Fusion from this->currentSourceCodeLines and increase the pointer
+     * StatementList
+     *  : Statement
+     *  | StatementList Statement
+     *  ;
      *
-     * @return string next line of Fusion to parse
      */
-    protected function getNextFusionLine()
+    protected function StatementList($stopLookahead = null)
     {
-        $fusionLine = current($this->currentSourceCodeLines);
-        next($this->currentSourceCodeLines);
-        $this->currentLineNumber++;
-        return $fusionLine;
+        // TODO: $stopLookahead provide not ws option
+        while ($this->peek()['type'] !== 'EOF' && $this->peek([self::IGNORE_WHITESPACE])['type'] !== $stopLookahead) {
+            $this->Statement();
+        }
     }
 
     /**
-     * Parses one line of Fusion
+     * Statement
+     *  : EmptyStatement
+     *  | ClassDeclaration
+     *  | DeleteStatement
+     *  | ObjectDefinition
+     *  ;
      *
-     * @param string $fusionLine One line of Fusion code
-     * @return void
-     * @throws Fusion\Exception
      */
-    protected function parseFusionLine($fusionLine)
+    protected function Statement(): void
     {
-        $fusionLine = trim($fusionLine);
-
-        if ($this->currentBlockCommentState === true) {
-            $this->parseComment($fusionLine);
-        } else {
-            if ($fusionLine === '') {
+        switch ($this->peek([self::IGNORE_WHITESPACE, self::VTOKEN_PATHIDENTIFIER])['type']) {
+            case 'NEWLINE':
+            case ';':
+                $this->consume();
                 return;
-            } elseif (preg_match(self::SCAN_PATTERN_COMMENT, $fusionLine)) {
-                $this->parseComment($fusionLine);
-            } elseif (preg_match(self::SCAN_PATTERN_OPENINGCONFINEMENT, $fusionLine)) {
-                $this->parseConfinementBlock($fusionLine, true);
-            } elseif (preg_match(self::SCAN_PATTERN_CLOSINGCONFINEMENT, $fusionLine)) {
-                $this->parseConfinementBlock($fusionLine, false);
-            } elseif (preg_match(self::SCAN_PATTERN_DECLARATION, $fusionLine)) {
-                $this->parseDeclaration($fusionLine);
-            } elseif (preg_match(self::SCAN_PATTERN_OBJECTDEFINITION, $fusionLine)) {
-                $this->parseObjectDefinition($fusionLine);
+
+            case 'EOF':
+                return;
+
+            case 'PROTOTYPE':
+               $this->PrototypeDeclaration();
+                return;
+
+            case 'DELETE':
+               $this->DeleteStatement();
+                return;
+
+            case 'V:PATHIDENTIFIER':
+            case '@':
+            case 'PROTOTYPE_START':
+            case 'STRING':
+            case 'CHAR':
+                $this->ObjectDefinition();
+                return;
+            default:
+                throw new \Error('unexpected token in statement: ' . json_encode($this->peek()));
+        }
+    }
+
+    /**
+     * PrototypeDeclaration
+     *  : PROTOTYPE FusionObjectName LazyBlockStatement
+     *  | PROTOTYPE FusionObjectName EXTENDS FusionObjectName LazyBlockStatement
+     *  ;
+     *
+     */
+    protected function PrototypeDeclaration()
+    {
+        $this->consume('PROTOTYPE');
+
+        $currentPathPrefix = $this->getCurrentObjectPathPrefix();
+
+        $currentPath = [...$currentPathPrefix, '__prototypes', $this->FusionObjectName()];
+
+        if ($this->peek([self::IGNORE_SPACE])['type'] === 'EXTENDS') {
+            $this->consume();
+
+            $extendObjectPath = [...$currentPathPrefix, '__prototypes', $this->FusionObjectName()];
+
+            if ($this->pathsAreBothPrototype($currentPath, $extendObjectPath)) {
+                $this->inheritPrototype($currentPath, $extendObjectPath);
             } else {
-                throw new Fusion\Exception('Syntax error in line ' . $this->currentLineNumber . '. (' . $fusionLine . ')' . $this->renderCurrentFileAndLineInformation(), 1180547966);
+                throw new \Error("one of the paths is not a prototype.");
             }
         }
-    }
 
-    /**
-     * Parses a line with comments or a line while parsing is in block comment mode.
-     *
-     * @param string $fusionLine One line of Fusion code
-     * @return void
-     * @throws Fusion\Exception
-     */
-    protected function parseComment($fusionLine)
-    {
-        if (preg_match(self::SPLIT_PATTERN_COMMENTTYPE, $fusionLine, $matches, PREG_OFFSET_CAPTURE) === 1) {
-            switch ($matches[1][0]) {
-                case '/*':
-                    $this->currentBlockCommentState = true;
-                    break;
-                case '*/':
-                    if ($this->currentBlockCommentState !== true) {
-                        throw new Fusion\Exception('Unexpected closing block comment without matching opening block comment.' . $this->renderCurrentFileAndLineInformation(), 1180615119);
-                    }
-                    $this->currentBlockCommentState = false;
-                    $this->parseFusionLine(substr($fusionLine, ($matches[1][1] + 2)));
-                    break;
-                case '#':
-                case '//':
-                default:
-                    break;
-            }
-        } elseif ($this->currentBlockCommentState === false) {
-            throw new Fusion\Exception('No comment type matched although the comment scan regex matched the Fusion line (' . $fusionLine . ').' . $this->renderCurrentFileAndLineInformation(), 1180614895);
-        }
-    }
-
-    /**
-     * Parses a line which opens or closes a confinement
-     *
-     * @param string $fusionLine One line of Fusion code
-     * @param boolean $isOpeningConfinement Set to true, if an opening confinement is to be parsed and false if it's a closing confinement.
-     * @return void
-     * @throws Fusion\Exception
-     */
-    protected function parseConfinementBlock($fusionLine, $isOpeningConfinement)
-    {
-        if ($isOpeningConfinement) {
-            $result = trim(trim(trim($fusionLine), '{'));
-            array_push($this->currentObjectPathStack, $this->getCurrentObjectPathPrefix() . $result);
+        if ($this->peek([self::IGNORE_SPACE])['type'] === '{') {
+            $this->BlockStatement($currentPath);
         } else {
-            if (count($this->currentObjectPathStack) < 1) {
-                throw new Fusion\Exception('Unexpected closing confinement without matching opening confinement. Check the number of your curly braces.' . $this->renderCurrentFileAndLineInformation(), 1181575973);
-            }
-            array_pop($this->currentObjectPathStack);
+            $this->EndOfStatement();
         }
     }
 
     /**
-     * Parses a parser declaration of the form "declarationtype: declaration".
+     * DeleteStatement
+     *  : DELETE AbsoluteObjectPath
+     *  ;
      *
-     * @param string $fusionLine One line of Fusion code
-     * @return void
-     * @throws Fusion\Exception
      */
-    protected function parseDeclaration($fusionLine)
+    protected function DeleteStatement()
     {
-        $result = preg_match(self::SPLIT_PATTERN_DECLARATION, $fusionLine, $matches);
-        if ($result !== 1 || !(isset($matches['declarationType']) && isset($matches['declaration']))) {
-            throw new Fusion\Exception('Invalid declaration "' . $fusionLine . '"' . $this->renderCurrentFileAndLineInformation(), 1180544656);
+        $this->consume('DELETE');
+        $currentPath = $this->AbsoluteObjectPath();
+        $this->valueUnAssignment($currentPath);
+    }
+
+    /**
+     * ObjectDefinition
+     *  : ObjectPath BlockStatement?
+     *  | ObjectPath ObjectOperator EndOfStatement
+     *  | ObjectPath ObjectOperator BlockStatement?
+     *  ;
+     *
+     */
+    protected function ObjectDefinition(): void
+    {
+        $path = $this->ObjectPath($this->getCurrentObjectPathPrefix());
+
+        if ($this->peek([self::IGNORE_SPACE])['type'] === '{') {
+            $this->BlockStatement($path);
+            return;
         }
 
-        switch ($matches['declarationType']) {
-            case 'namespace':
-                $this->parseNamespaceDeclaration($matches['declaration']);
-                break;
-            case 'include':
-                $this->parseInclude($matches['declaration']);
-                break;
+        $this->ObjectOperator($path);
+
+        // using here self::IGNORE_WHITESPACE will discard any newlines, which are needed in EndOfStatement
+        if ($this->peek([self::IGNORE_SPACE])['type'] === '{') {
+            $this->BlockStatement($path);
+        } else {
+            $this->EndOfStatement();
         }
     }
 
     /**
-     * Parses an object definition.
+     * EndOfStatement
+     *  : EOF
+     *  | ;
+     *  | NEWLINE
+     *  ;
      *
-     * @param string $fusionLine One line of Fusion code
-     * @return void
-     * @throws Fusion\Exception
      */
-    protected function parseObjectDefinition($fusionLine)
+    protected function EndOfStatement(): void
     {
-        $result = preg_match(self::SPLIT_PATTERN_OBJECTDEFINITION, $fusionLine, $matches);
-        if ($result !== 1) {
-            throw new Fusion\Exception('Invalid object definition "' . $fusionLine . '"' . $this->renderCurrentFileAndLineInformation(), 1180548488);
+        switch ($this->peek([self::IGNORE_SPACE])['type']){
+            case 'EOF':
+                return;
+            // just for experimentation
+            case ';':
+            case 'NEWLINE':
+                $this->consume();
+                return;
+        }
+        throw new \Error('Expected EndOfStatement but got: ' . json_encode($this->peek()));
+    }
+
+    /**
+     * BlockStatement:
+     *  : { StatementList }
+     *  ;
+     *
+     */
+    protected function BlockStatement(array $path)
+    {
+        $this->consume('{');
+        array_push($this->currentObjectPathStack, $path);
+
+        if ($this->peek()['type'] !== '}') {
+            $this->StatementList('}');
         }
 
-        $objectPath = $this->getCurrentObjectPathPrefix() . $matches['ObjectPath'];
-        switch ($matches['Operator']) {
+        array_pop($this->currentObjectPathStack);
+        $this->consume('}');
+    }
+
+    /**
+     * AbsoluteObjectPath
+     *  : . ObjectPath
+     *  | ObjectPath
+     *  ;
+     *
+     */
+    protected function AbsoluteObjectPath()
+    {
+        $objectPathPrefix = [];
+        if ($this->lazyConsume('.')) {
+            $objectPathPrefix = $this->getCurrentObjectPathPrefix();
+        }
+        return $this->ObjectPath($objectPathPrefix);
+    }
+
+    /**
+     * ObjectPath
+     *  : PathSegment
+     *  | ObjectPath . PathSegment
+     *  ;
+     *
+     */
+    protected function ObjectPath(array $objectPathPrefix = []): array
+    {
+        $objectPath = $objectPathPrefix;
+
+        do {
+            array_push($objectPath, ...$this->PathSegment());
+        } while ($this->lazyConsume('.'));
+
+        return $objectPath;
+    }
+
+    /**
+     * PathSegment
+     *  : V:PATHIDENTIFIER
+     *  | @ V:PATHIDENTIFIER
+     *  | STRING
+     *  | CHAR
+     *  | PROTOTYPE_START FusionObjectName )
+     *  ;
+     *
+     */
+    protected function PathSegment(): array
+    {
+        $token = $this->peek([self::VTOKEN_PATHIDENTIFIER]);
+
+        FusionAst::keyIsReservedParseTreeKey($token['value']);
+
+        switch ($token['type']) {
+            case 'V:PATHIDENTIFIER':
+                return [$this->consume()['value']];
+
+            case '@':
+                $this->consume();
+                return ['__meta', $this->consume('V:PATHIDENTIFIER', [self::VTOKEN_PATHIDENTIFIER])['value']];
+
+            case 'STRING':
+            case 'CHAR':
+                /* strip quotes and unescape ... */
+                return [$this->consume()['value']];
+
+            case 'PROTOTYPE_START':
+                $this->consume('PROTOTYPE_START');
+                $name = $this->FusionObjectName();
+                $this->consume(')');
+                return ['__prototypes', $name];
+
+            default:
+                throw new Exception("This Path segment makes no sense: " . $this->peek()['type']);
+        }
+    }
+
+    /**
+     * FusionObjectName
+     *  : V:OBJECTNAMEPART
+     *  | V:OBJECTNAMEPART : V:OBJECTNAMEPART
+     *  ;
+     *
+     */
+    protected function FusionObjectName()
+    {
+        $objectPart = $this->consume('V:OBJECTNAMEPART', [self::VTOKEN_OBJECTNAMEPART])['value'];
+
+        if ($this->lazyConsume(':')) {
+            $namespace = $this->objectTypeNamespaces[$objectPart] ?? $objectPart;
+            $unqualifiedType = $this->consume('V:OBJECTNAMEPART', [self::VTOKEN_OBJECTNAMEPART])['value'];
+        } else {
+            $namespace = $this->objectTypeNamespaces['default'];
+            $unqualifiedType = $objectPart;
+        }
+
+        return $namespace . ':' . $unqualifiedType;
+    }
+
+    /**
+     * ObjectOperator
+     *  : = Expression
+     *  | >
+     *  | < AbsoluteObjectPath
+     *  | EXTENDS AbsoluteObjectPath
+     *  ;
+     *
+     */
+    protected function ObjectOperator($currentPath): void
+    {
+        switch ($this->peek()['type']) {
             case '=':
-                $this->parseValueAssignment($objectPath, $matches['Value']);
-                break;
+                $this->consume();
+                $value = $this->Expression();
+                $this->setValueInObjectTree($currentPath, $value);
+                return;
+
             case '>':
-                $this->parseValueUnAssignment($objectPath);
-                break;
+                $this->consume();
+                $this->valueUnAssignment($currentPath);
+                return;
+
             case '<':
-                $this->parseValueCopy($matches['Value'], $objectPath);
-                break;
+            case 'EXTENDS':
+                $operator = $this->consume()['type'];
+
+                $this->peek([self::IGNORE_SPACE]);
+
+                $sourcePath = $this->AbsoluteObjectPath();
+
+                if ($this->pathsAreBothPrototype($currentPath, $sourcePath)) {
+                    $this->inheritPrototype($currentPath, $sourcePath);
+                    return;
+                }
+
+                if ($operator === 'EXTENDS') {
+                    throw new Exception("EXTENDS doesnt support he copy operation");
+                }
+
+                $this->copyValue($currentPath, $sourcePath);
+                return;
+
+            default:
+                throw new Exception("no operation matched token: " . json_encode($this->peek()));
         }
+    }
 
-        if (isset($matches['OpeningConfinement'])) {
-            $this->parseConfinementBlock($matches['ObjectPath'], true);
+
+
+    /**
+     * Expression
+     *  : EelExpression
+     *  | UNCLOSED_EEL_EXPRESSION
+     *  | DSL_EXPRESSION
+     *  | FusionObject
+     *  | Literal
+     *  ;
+     *
+     */
+    protected function Expression()
+    {
+        switch ($this->peek([self::IGNORE_SPACE, self::VTOKEN_OBJECTNAMEPART])['type']) {
+            case 'EEL_EXPRESSION':
+                return $this->EelExpression();
+
+            case 'UNCLOSED_EEL_EXPRESSION':
+                // TODO: line info
+                $lol = substr($this->lexer->string, $this->lexer->cursor - 2, 20);
+                throw new \Error('an eel expression starting with: ' . $lol);
+
+            case 'DSL_EXPRESSION':
+                return $this->consume()['value'];
+
+            case 'V:OBJECTNAMEPART':
+                return $this->FusionObject();
+
+            // decimal ?
+            case 'INTEGER':
+            case 'FALSE':
+            case 'NULL':
+            case 'TRUE':
+            case 'STRING':
+            case 'CHAR':
+                return $this->Literal();
+
+            default:
+                throw new \Error("we dont have this expresssion: ". json_encode($this->peek()));
         }
     }
 
     /**
-     * Parses a value operation of the type "assignment".
+     * EelExpression
+     *  : EEL_EXPRESSION
+     *  ;
      *
-     * @param string $objectPath The object path as a string
-     * @param string $value The unparsed value as a string
-     * @return void
      */
-    protected function parseValueAssignment($objectPath, $value)
+    protected function EelExpression(): array
     {
-        $processedValue = $this->getProcessedValue($value);
-        $this->setValueInObjectTree($this->getParsedObjectPath($objectPath), $processedValue);
+        $eelExpression = $this->consume('EEL_EXPRESSION')['value'];
+        $eelExpression = substr($eelExpression, 2, -1);
+        $eelExpression = str_replace("\n", '', $eelExpression);
+        return [
+            '__eelExpression' => $eelExpression, '__value' => null, '__objectType' => null
+        ];
     }
 
     /**
-     * Unsets the object, property or variable specified by the object path.
+     * FusionObject
+     *  : FusionObjectName
+     *  ;
      *
-     * @param string $objectPath The object path as a string
-     * @return void
-     * @throws Fusion\Exception
      */
-    protected function parseValueUnAssignment($objectPath)
+    protected function FusionObject(): array
     {
-        $objectPathArray = $this->getParsedObjectPath($objectPath);
-        $this->setValueInObjectTree($objectPathArray, null);
-        $this->setValueInObjectTree($objectPathArray, ['__stopInheritanceChain' => true]);
+        return [
+            '__objectType' => $this->FusionObjectName(), '__value' => null, '__eelExpression' => null
+        ];
     }
 
     /**
-     * Copies the object or value specified by sourcObjectPath and assigns
-     * it to targetObjectPath.
+     * Literal
+     *  : FALSE
+     *  | TRUE
+     *  | NULL
+     *  | Number
+     *  | STRING
+     *  | CHAR
+     *  ;
      *
-     * @param string $sourceObjectPath Specifies the location in the object tree from where the object or value will be taken
-     * @param string $targetObjectPath Specifies the location in the object tree where the copy will be stored
-     * @return void
-     * @throws Fusion\Exception
      */
-    protected function parseValueCopy($sourceObjectPath, $targetObjectPath)
+    protected function Literal()
     {
-        $sourceObjectPathArray = $this->getParsedObjectPath($sourceObjectPath);
-        $targetObjectPathArray = $this->getParsedObjectPath($targetObjectPath);
+        switch ($this->peek()['type']) {
+            case 'FALSE':
+                $this->consume();
+                return false;
+            case 'NULL':
+                $this->consume();
+                return null;
+            case 'TRUE':
+                $this->consume();
+                return true;
+            case 'INTEGER':
+                return $this->Number();
+            case 'STRING':
+                $string = $this->consume()['value'];
+                $string = substr($string, 1, -1);
+                return stripcslashes($string);
+            case 'CHAR':
+                $char = $this->consume()['value'];
+                $char = substr($char, 1, -1);
+                return str_replace("\\'", "'", $char);
+            default:
+                throw new \Error('we dont support thjis Literal: ' . json_encode($this->peek()));
+        }
+    }
 
-        $sourceIsPrototypeDefinition = (count($sourceObjectPathArray) >= 2 && $sourceObjectPathArray[count($sourceObjectPathArray) - 2] === '__prototypes');
-        $targetIsPrototypeDefinition = (count($targetObjectPathArray) >= 2 && $targetObjectPathArray[count($targetObjectPathArray) - 2] === '__prototypes');
-
-        if ($sourceIsPrototypeDefinition || $targetIsPrototypeDefinition) {
-            // either source or target are a prototype definition
-            if ($sourceIsPrototypeDefinition && $targetIsPrototypeDefinition && count($sourceObjectPathArray) === 2 && count($targetObjectPathArray) === 2) {
-                // both are a prototype definition and the path has length 2: this means
-                // it must be of the form "prototype(Foo) < prototype(Bar)"
-                $targetObjectPathArray[] = '__prototypeObjectName';
-                $this->setValueInObjectTree($targetObjectPathArray, end($sourceObjectPathArray));
-            } elseif ($sourceIsPrototypeDefinition && $targetIsPrototypeDefinition) {
-                // Both are prototype definitions, but at least one is nested (f.e. foo.prototype(Bar))
-                // Currently, it is not supported to override the prototypical inheritance in
-                // parts of the TS rendering tree.
-                // Although this might work conceptually, it makes reasoning about the prototypical
-                // inheritance tree a lot more complex; that's why we forbid it right away.
-                throw new Fusion\Exception('Tried to parse "' . $targetObjectPath . '" < "' . $sourceObjectPath . '", however one of the sides is nested (e.g. foo.prototype(Bar)). Setting up prototype inheritance is only supported at the top level: prototype(Foo) < prototype(Bar)' . $this->renderCurrentFileAndLineInformation(), 1358418019);
-            } else {
-                // Either "source" or "target" are no prototypes. We do not support copying a
-                // non-prototype value to a prototype value or vice-versa.
-                throw new Fusion\Exception('Tried to parse "' . $targetObjectPath . '" < "' . $sourceObjectPath . '", however one of the sides is no prototype definition of the form prototype(Foo). It is only allowed to build inheritance chains with prototype objects.' . $this->renderCurrentFileAndLineInformation(), 1358418015);
-            }
+    /**
+     * Number
+     *  : -? DIGIT
+     *  | -? DIGIT . DIGIT
+     *  ;
+     *
+     */
+    protected function Number()
+    {
+        $int = $this->consume('INTEGER')['value'];
+        if ($this->peek()['type'] === 'DECIMAL') {
+            $decimal = $this->consume()['value'];
+            $float = $int . $decimal;
+            return floatval($float);
         } else {
-            $originalValue = $this->getValueFromObjectTree($sourceObjectPathArray);
-            $value = is_object($originalValue) ? clone $originalValue : $originalValue;
-
-            $this->setValueInObjectTree($targetObjectPathArray, $value);
+            return intval($int);
         }
     }
 
-    /**
-     * Parses a namespace declaration and stores the result in the namespace registry.
-     *
-     * @param string $namespaceDeclaration The namespace declaration, for example "neos = Neos.Neos"
-     * @return void
-     * @throws Fusion\Exception
-     */
-    protected function parseNamespaceDeclaration($namespaceDeclaration)
-    {
-        $result = preg_match(self::SPLIT_PATTERN_NAMESPACEDECLARATION, $namespaceDeclaration, $matches);
-        if ($result !== 1 || !(isset($matches['alias']) && isset($matches['packageKey']))) {
-            throw new Fusion\Exception('Invalid namespace declaration "' . $namespaceDeclaration . '"' . $this->renderCurrentFileAndLineInformation(), 1180547190);
-        }
 
-        $namespaceAlias = $matches['alias'];
-        $namespacePackageKey = $matches['packageKey'];
-        $this->objectTypeNamespaces[$namespaceAlias] = $namespacePackageKey;
+    protected function valueUnAssignment($targetObjectPath)
+    {
+        $this->setValueInObjectTree($targetObjectPath, null);
+        $this->setValueInObjectTree($targetObjectPath, ['__stopInheritanceChain' => true]);
     }
 
-    /**
-     * Parse an include file. Currently, we start a new parser object; but we could as well re-use
-     * the given one.
-     *
-     * @param string $include The include value, for example " FooBar" or " resource://....". Can also include wildcard mask for Fusion globbing.
-     * @return void
-     * @throws Fusion\Exception
-     */
-    protected function parseInclude($include)
+    protected function copyValue($targetObjectPath, $sourceObjectPath)
     {
-        $include = trim($include);
-        $parser = new Parser();
+        $originalValue = FusionAst::getValueFromObjectTree($sourceObjectPath, $this->objectTree);
+        $value = is_object($originalValue) ? clone $originalValue : $originalValue;
 
-        if (strpos($include, 'resource://') !== 0) {
-            // Resolve relative paths
-            if ($this->contextPathAndFilename !== null) {
-                $include = dirname($this->contextPathAndFilename) . '/' . $include;
-            } else {
-                throw new Fusion\Exception('Relative file inclusions are only possible if a context path and filename has been passed as second argument to parse()' . $this->renderCurrentFileAndLineInformation(), 1329806940);
-            }
-        }
-
-        // Match recursive wildcard globbing "**/*"
-        if (preg_match('#([^\*]*)\*\*/\*#', $include, $matches) === 1) {
-            $basePath = $matches['1'];
-            if (!is_dir($basePath)) {
-                throw new Fusion\Exception(sprintf('The path %s does not point to a directory.', $basePath) . $this->renderCurrentFileAndLineInformation(), 1415033179);
-            }
-            $recursiveDirectoryIterator = new \RecursiveDirectoryIterator($basePath);
-            $iterator = new \RecursiveIteratorIterator($recursiveDirectoryIterator);
-        // Match simple wildcard globbing "*"
-        } elseif (preg_match('#([^\*]*)\*#', $include, $matches) === 1) {
-            $basePath = $matches['1'];
-            if (!is_dir($basePath)) {
-                throw new Fusion\Exception(sprintf('The path %s does not point to a directory.', $basePath) . $this->renderCurrentFileAndLineInformation(), 1415033180);
-            }
-            $iterator = new \DirectoryIterator($basePath);
-        }
-        // If iterator is set it means we're doing globbing
-        if (isset($iterator)) {
-            foreach ($iterator as $fileInfo) {
-                $pathAndFilename = $fileInfo->getPathname();
-                if ($fileInfo->getExtension() === 'fusion') {
-                    // Check if not trying to recursively include the current file via globbing
-                    if (stat($pathAndFilename) !== stat($this->contextPathAndFilename)) {
-                        if (!is_readable($pathAndFilename)) {
-                            throw new Fusion\Exception(sprintf('Could not include Fusion file "%s"', $pathAndFilename) . $this->renderCurrentFileAndLineInformation(), 1347977018);
-                        }
-                        $this->objectTree = $parser->parse(file_get_contents($pathAndFilename), $pathAndFilename, $this->objectTree, false);
-                    }
-                }
-            }
-        } else {
-            if (!is_readable($include)) {
-                throw new Fusion\Exception(sprintf('Could not include Fusion file "%s"', $include) . $this->renderCurrentFileAndLineInformation(), 1347977017);
-            }
-            $this->objectTree = $parser->parse(file_get_contents($include), $include, $this->objectTree, false);
-        }
-    }
-
-    /**
-     * Parse an object path specified as a string and returns an array.
-     *
-     * @param string $objectPath The object path to parse
-     * @return array An object path array
-     * @throws Fusion\Exception
-     */
-    protected function getParsedObjectPath($objectPath)
-    {
-        if (preg_match(self::SCAN_PATTERN_OBJECTPATH, $objectPath) === 1) {
-            if ($objectPath[0] === '.') {
-                $objectPath = $this->getCurrentObjectPathPrefix() . substr($objectPath, 1);
-            }
-
-            $objectPathArray = [];
-            foreach (preg_split(self::SPLIT_PATTERN_OBJECTPATH, $objectPath) as $objectPathSegment) {
-                if ($objectPathSegment[0] === '@') {
-                    $objectPathArray[] = '__meta';
-                    $metaProperty = substr($objectPathSegment, 1);
-                    if ($metaProperty === 'override') {
-                        $metaProperty = 'context';
-                    }
-                    $objectPathArray[] = $metaProperty;
-                } elseif (preg_match(self::SCAN_PATTERN_OBJECTPATHSEGMENT_IS_PROTOTYPE, $objectPathSegment)) {
-                    $objectPathArray[] = '__prototypes';
-
-                    $unexpandedObjectType = substr($objectPathSegment, 10, -1);
-                    $objectTypeParts = explode(':', $unexpandedObjectType);
-                    if (!isset($objectTypeParts[1])) {
-                        $fullyQualifiedObjectType = $this->objectTypeNamespaces['default'] . ':' . $objectTypeParts[0];
-                    } elseif (isset($this->objectTypeNamespaces[$objectTypeParts[0]])) {
-                        $fullyQualifiedObjectType = $this->objectTypeNamespaces[$objectTypeParts[0]] . ':' . $objectTypeParts[1];
-                    } else {
-                        $fullyQualifiedObjectType = $unexpandedObjectType;
-                    }
-                    $objectPathArray[] = $fullyQualifiedObjectType;
-                } else {
-                    $key = $objectPathSegment;
-                    if (substr($key, 0, 2) === '__' && in_array($key, self::$reservedParseTreeKeys, true)) {
-                        throw new Fusion\Exception(sprintf('Reversed key "%s" used in object path "%s".', $key, $objectPath) . $this->renderCurrentFileAndLineInformation(), 1437065270);
-                    }
-                    $objectPathArray[] = $this->unquoteString($key);
-                }
-            }
-        } else {
-            throw new Fusion\Exception('Syntax error: Invalid object path "' . $objectPath . '".' . $this->renderCurrentFileAndLineInformation(), 1180603499);
-        }
-
-        return $objectPathArray;
-    }
-
-    /**
-     * Parses the given value (which may be a literal, variable or object type) and
-     * returns the evaluated result, including variables replaced by their actual value.
-     *
-     * @param string $unparsedValue The unparsed value
-     * @return mixed The processed value
-     * @throws Fusion\Exception
-     */
-    protected function getProcessedValue($unparsedValue)
-    {
-        if (preg_match(self::SPLIT_PATTERN_VALUENUMBER, $unparsedValue, $matches) === 1) {
-            $processedValue = intval($unparsedValue);
-        } elseif (preg_match(self::SPLIT_PATTERN_VALUEFLOATNUMBER, $unparsedValue, $matches) === 1) {
-            $processedValue = floatval($unparsedValue);
-        } elseif (preg_match(Package::EelExpressionRecognizer, $unparsedValue, $matches) === 1) {
-            // Single-line Eel Expressions
-            $processedValue = [
-                '__eelExpression' => $matches[1],
-                '__value' => null,
-                '__objectType' => null
-            ];
-        } elseif (preg_match(self::SPLIT_PATTERN_VALUELITERAL, $unparsedValue, $matches) === 1) {
-            $processedValue = stripslashes(isset($matches[2]) ? $matches[2] : $matches[1]);
-        } elseif (preg_match(self::SPLIT_PATTERN_VALUEMULTILINELITERAL, $unparsedValue, $matches) === 1) {
-            $processedValue = stripslashes(isset($matches['SingleQuoteValue']) ? $matches['SingleQuoteValue'] : $matches['DoubleQuoteValue']);
-            $closingQuoteChar = isset($matches['SingleQuoteChar']) ? $matches['SingleQuoteChar'] : $matches['DoubleQuoteChar'];
-            $regexp = '/(?P<Value>(?:\\\\.|[^\\\\' . $closingQuoteChar . '])*)(?P<QuoteChar>' . $closingQuoteChar . '?)/';
-            while (($fusionLine = $this->getNextFusionLine()) !== false) {
-                preg_match($regexp, $fusionLine, $matches);
-                $processedValue .= "\n" . stripslashes($matches['Value']);
-                if (!empty($matches['QuoteChar'])) {
-                    break;
-                }
-            }
-        } elseif (preg_match(self::SPLIT_PATTERN_VALUEBOOLEAN, $unparsedValue, $matches) === 1) {
-            $processedValue = (strtolower($matches[1]) === 'true');
-        } elseif (preg_match(self::SPLIT_PATTERN_VALUENULL, $unparsedValue, $matches) === 1) {
-            $processedValue = null;
-        } elseif (preg_match(self::SCAN_PATTERN_VALUEOBJECTTYPE, $unparsedValue, $matches) === 1) {
-            if (empty($matches['namespace'])) {
-                $objectTypeNamespace = $this->objectTypeNamespaces['default'];
-            } else {
-                $objectTypeNamespace = (isset($this->objectTypeNamespaces[$matches['namespace']])) ? $this->objectTypeNamespaces[$matches['namespace']] : $matches['namespace'];
-            }
-            $processedValue = [
-                '__objectType' => $objectTypeNamespace . ':' . $matches['unqualifiedType'],
-                '__value' => null,
-                '__eelExpression' => null
-            ];
-        } else {
-            // Trying to match multiline Eel expressions
-            if (strpos($unparsedValue, '${') === 0) {
-                $eelExpressionSoFar = $unparsedValue;
-                // potential start of multiline Eel Expression; trying to consume next lines...
-                while (($line = $this->getNextFusionLine()) !== false) {
-                    $eelExpressionSoFar .= chr(10) . $line;
-
-                    if (substr($line, -1) === '}') {
-                        // potential end-of-eel-expression marker
-                        $matches = [];
-                        if (preg_match(Package::EelExpressionRecognizer, $eelExpressionSoFar, $matches) === 1) {
-                            // Single-line Eel Expressions
-                            $processedValue = ['__eelExpression' => str_replace(chr(10), '', $matches[1]), '__value' => null, '__objectType' => null];
-                            break;
-                        }
-                    }
-                }
-
-                if ($line === false) {
-                    // if the last line we consumed is false, we have consumed the end of the file.
-                    throw new Fusion\Exception('Syntax error: A multi-line Eel expression starting with "' . $unparsedValue . '" was not closed.' . $this->renderCurrentFileAndLineInformation(), 1417616064);
-                }
-            }
-            // Trying to match multiline dsl-expressions
-            elseif (preg_match(self::SCAN_PATTERN_DSL_EXPRESSION_START, $unparsedValue)) {
-                $dslExpressionSoFar = $unparsedValue;
-                // potential start of multiline dsl-expression; trying to consume next lines...
-                while (true) {
-                    if (substr($dslExpressionSoFar, -1) === '`') {
-                        // potential end-of-dsl-expression marker
-                        $matches = [];
-                        if (preg_match(self::SPLIT_PATTERN_DSL_EXPRESSION, $dslExpressionSoFar, $matches) === 1) {
-                            $processedValue = $this->invokeAndParseDsl($matches['identifier'], $matches['code']);
-                            break;
-                        }
-                    }
-                    $line = $this->getNextFusionLine();
-                    if ($line === false) {
-                        // if the last line we consumed is false, we have consumed the end of the file.
-                        throw new Fusion\Exception('Syntax error: A multi-line dsl expression starting with "' . $unparsedValue . '" was not closed.' . $this->renderCurrentFileAndLineInformation(), 1490714685);
-                    }
-                    $dslExpressionSoFar .= chr(10) . $line;
-                }
-            } else {
-                throw new Fusion\Exception('Syntax error: Invalid value "' . $unparsedValue . '" in value assignment.' . $this->renderCurrentFileAndLineInformation(), 1180604192);
-            }
-        }
-        return $processedValue;
-    }
-
-    /**
-     * @param string $identifier
-     * @param $code
-     * @return mixed
-     * @throws Exception
-     * @throws Fusion\Exception
-     */
-    protected function invokeAndParseDsl($identifier, $code)
-    {
-        $dslObject = $this->dslFactory->create($identifier);
-        try {
-            $transpiledFusion = $dslObject->transpile($code);
-        } catch (\Exception $e) {
-            // convert all exceptions from dsl transpilation to fusion exception and add file and line info
-            throw new Fusion\Exception($e->getMessage() . $this->renderCurrentFileAndLineInformation(), 1180600696);
-        }
-
-        $parser = new Parser();
-        // transfer current namespaces to new parser
-        foreach ($this->objectTypeNamespaces as $key => $objectTypeNamespace) {
-            $parser->setObjectTypeNamespace($key, $objectTypeNamespace);
-        }
-        $temporaryAst = $parser->parse('value = ' . $transpiledFusion);
-        $processedValue = $temporaryAst['value'];
-        return $processedValue;
+        $this->setValueInObjectTree($targetObjectPath, $value);
     }
 
     /**
@@ -829,160 +688,61 @@ class Parser implements ParserInterface
      *
      * @param array $objectPathArray The object path, specifying the node / property to set
      * @param mixed $value The value to assign, is a non-array type or an array with __eelExpression etc.
-     * @param array $objectTree The current (sub-) tree, used internally - don't specify!
      * @return array The modified object tree
      */
-    protected function setValueInObjectTree(array $objectPathArray, $value, &$objectTree = null)
+    protected function setValueInObjectTree(array $objectPathArray, $value): array
     {
-        if ($objectTree === null) {
-            $objectTree = &$this->objectTree;
-        }
-
-        $currentKey = array_shift($objectPathArray);
-        if (is_numeric($currentKey)) {
-            $currentKey = (int)$currentKey;
-        }
-
-        if (empty($objectPathArray)) {
-            // last part of the iteration, setting the final value
-            if (isset($objectTree[$currentKey]) && $value === null) {
-                unset($objectTree[$currentKey]);
-            } elseif (isset($objectTree[$currentKey]) && is_array($objectTree[$currentKey])) {
-                if (is_array($value)) {
-                    $objectTree[$currentKey] = Arrays::arrayMergeRecursiveOverrule($objectTree[$currentKey], $value);
-                } else {
-                    $objectTree[$currentKey]['__value'] = $value;
-                    $objectTree[$currentKey]['__eelExpression'] = null;
-                    $objectTree[$currentKey]['__objectType'] = null;
-                }
-            } else {
-                $objectTree[$currentKey] = $value;
-            }
-        } else {
-            // we still need to traverse further down
-            if (isset($objectTree[$currentKey]) && !is_array($objectTree[$currentKey])) {
-                // the element one-level-down is already defined, but it is NOT an array. So we need to convert the simple type to __value
-                $objectTree[$currentKey] = [
-                    '__value' => $objectTree[$currentKey],
-                    '__eelExpression' => null,
-                    '__objectType' => null
-                ];
-            } elseif (!isset($objectTree[$currentKey])) {
-                $objectTree[$currentKey] = [];
-            }
-
-            $this->setValueInObjectTree($objectPathArray, $value, $objectTree[$currentKey]);
-        }
-
-        return $objectTree;
+        return FusionAst::setValueInObjectTree($objectPathArray, $value, $this->objectTree);
     }
 
-    /**
-     * Retrieves a value from a node in the object tree, specified by the object path array.
-     *
-     * @param array $objectPathArray The object path, specifying the node to retrieve the value of
-     * @param array $objectTree The current (sub-) tree, used internally - don't specify!
-     * @return mixed The value
-     */
-    protected function &getValueFromObjectTree(array $objectPathArray, &$objectTree = null)
+    protected function pathsAreBothPrototype(array $targetObjectPath, array $sourceObjectPath): bool
     {
-        if (is_null($objectTree)) {
-            $objectTree = &$this->objectTree;
+        $targetIsPrototypeDefinition = FusionAst::objectPathIsPrototype($targetObjectPath);
+        $sourceIsPrototypeDefinition = FusionAst::objectPathIsPrototype($sourceObjectPath);
+
+        if ($targetIsPrototypeDefinition && $sourceIsPrototypeDefinition) {
+            // both are a prototype definition
+            return true;
+        } elseif ($targetIsPrototypeDefinition || $sourceIsPrototypeDefinition) {
+            // Either "source" or "target" are no prototypes. We do not support copying a
+            // non-prototype value to a prototype value or vice-versa.
+            throw new Fusion\Exception('Tried to parse "' . join('.', $targetObjectPath) . '" < "' . join('.', $sourceObjectPath) . '", however one of the sides is no prototype definition of the form prototype(Foo). It is only allowed to build inheritance chains with prototype objects.' . $this->renderFileStuff(), 1358418015);
+        }
+        return false;
+    }
+
+    public function inheritPrototype($targetPrototypeObjectPath, $sourcePrototypeObjectPath)
+    {
+        if (count($targetPrototypeObjectPath) === 2 && count($sourcePrototypeObjectPath) === 2) {
+            // the path has length 2: this means
+            // it must be of the form "prototype(Foo) < prototype(Bar)"
+            $targetPrototypeObjectPath[] = '__prototypeObjectName';
+            $this->setValueInObjectTree($targetPrototypeObjectPath, end($sourcePrototypeObjectPath));
+        } else {
+            // Both are prototype definitions, but at least one is nested (f.e. foo.prototype(Bar))
+            // Currently, it is not supported to override the prototypical inheritance in
+            // parts of the Fusion rendering tree.
+            // Although this might work conceptually, it makes reasoning about the prototypical
+            // inheritance tree a lot more complex; that's why we forbid it right away.
+            // TODO: join($targetPrototypeObjectPath, '.') will have ugly things
+            throw new Fusion\Exception('Tried to parse "' . join($targetPrototypeObjectPath, '.') . '" < "' . join($sourcePrototypeObjectPath, '.') . '", however one of the sides is nested (e.g. foo.prototype(Bar)). Setting up prototype inheritance is only supported at the top level: prototype(Foo) < prototype(Bar)' . $this->renderCurrentFileAndLineInformation(), 1358418019);
+        }
+    }
+
+    protected function whiteSpace(): void
+    {
+        while ($this->peek()['type'] === 'NEWLINE' || $this->peek()['type'] === 'SPACE') {
+            $this->consume();
         }
 
-        if (count($objectPathArray) > 0) {
-            $currentKey = array_shift($objectPathArray);
-            if (is_numeric($currentKey)) {
-                $currentKey = (int)$currentKey;
-            }
-            if (!isset($objectTree[$currentKey])) {
-                $objectTree[$currentKey] = [];
-            }
-            $value = &$this->getValueFromObjectTree($objectPathArray, $objectTree[$currentKey]);
-        } else {
-            $value = &$objectTree;
+    }
+
+    protected function getNextTokenAndCombineValue(array $tokenTypesToCombine, string $value): string
+    {
+        $this->lexedToken = $this->lexer->getNextToken();
+        while (in_array($this->lexedToken, $tokenTypesToCombine)) {
+            $value .= $this->lexedToken['value'];
         }
         return $value;
-    }
-
-    /**
-     * Returns the first part of an object path from the current object path stack
-     * which can be used to prefix a relative object path.
-     *
-     * @return string A part of an object path, ready to use as a prefix
-     */
-    protected function getCurrentObjectPathPrefix()
-    {
-        $lastElementOfStack = end($this->currentObjectPathStack);
-        return ($lastElementOfStack !== false) ? $lastElementOfStack . '.' : '';
-    }
-
-    /**
-     * Precalculate merged configuration for inherited prototypes.
-     *
-     * @return void
-     * @throws Fusion\Exception
-     */
-    protected function buildPrototypeHierarchy()
-    {
-        if (!isset($this->objectTree['__prototypes'])) {
-            return;
-        }
-
-        foreach ($this->objectTree['__prototypes'] as $prototypeName => $prototypeConfiguration) {
-            $prototypeInheritanceHierarchy = [];
-            $currentPrototypeName = $prototypeName;
-            while (isset($this->objectTree['__prototypes'][$currentPrototypeName]['__prototypeObjectName'])) {
-                $currentPrototypeName = $this->objectTree['__prototypes'][$currentPrototypeName]['__prototypeObjectName'];
-                array_unshift($prototypeInheritanceHierarchy, $currentPrototypeName);
-                if ($prototypeName === $currentPrototypeName) {
-                    throw new Fusion\Exception(sprintf('Recursive inheritance found for prototype "%s". Prototype chain: %s', $prototypeName, implode(' < ', array_reverse($prototypeInheritanceHierarchy))), 1492801503);
-                }
-            }
-
-            if (count($prototypeInheritanceHierarchy)) {
-                // prototype chain from most *general* to most *specific* WITHOUT the current node type!
-                $this->objectTree['__prototypes'][$prototypeName]['__prototypeChain'] = $prototypeInheritanceHierarchy;
-            }
-        }
-    }
-
-    /**
-     * Removes escapings from a given argument string and trims the outermost
-     * quotes.
-     *
-     * This method is meant as a helper for regular expression results.
-     *
-     * @param string $quotedValue Value to unquote
-     * @return string Unquoted value
-     */
-    protected function unquoteString($quotedValue)
-    {
-        switch ($quotedValue[0]) {
-            case '"':
-                $value = str_replace('\\"', '"', preg_replace('/(^"|"$)/', '', $quotedValue));
-                break;
-            case "'":
-                $value = str_replace("\\'", "'", preg_replace('/(^\'|\'$)/', '', $quotedValue));
-                break;
-            default:
-                $value = $quotedValue;
-        }
-        return str_replace('\\\\', '\\', $value);
-    }
-
-    /**
-     * Render a hint about the currently rendered file and líne that is to be used
-     * in Exception Messages to show where parser errors originate from
-     *
-     * @return string
-     */
-    protected function renderCurrentFileAndLineInformation(): string
-    {
-        if ($this->contextPathAndFilename) {
-            return chr(10) . $this->contextPathAndFilename . ':' . $this->currentLineNumber;
-        } else {
-            return '';
-        }
     }
 }
