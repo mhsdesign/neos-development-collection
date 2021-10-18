@@ -611,7 +611,7 @@ class ParserOld implements ParserInterface
         }
 
         // Match recursive wildcard globbing "**/*"
-        if (preg_match('#([^\*]*)\*\*/\*#', $include, $matches) === 1) {
+        if (preg_match('#([^*]*)\*\*/\*#', $include, $matches) === 1) {
             $basePath = $matches['1'];
             if (!is_dir($basePath)) {
                 throw new Fusion\Exception(sprintf('The path %s does not point to a directory.', $basePath) . $this->renderCurrentFileAndLineInformation(), 1415033179);

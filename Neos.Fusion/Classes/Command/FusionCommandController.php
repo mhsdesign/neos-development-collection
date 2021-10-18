@@ -45,32 +45,47 @@ class FusionCommandController extends CommandController
 //        }f=false{ g=fwef;}
 
 
-        $parser = new Parser;
-        $input = <<<Fusion
 
-            45445.14545 = "fweef"
+//        45445.145-45 = 4f.Fusion
+//        fwefew = lol:moin {
+//        }
+//
+//        namespace: lol = Mhs.Design
+//
+//        lol = 4458454
+//
+//
+//        c = lol:moin {
+//            }
+//
+//        prototype:a extends:b {
+//                lol = "fwef"
+//            delete: .lol
+//        }
+//        include: fwefw/f/**/*.fwefwe
 
+//        $parser = new ParserOld();
+        $parser = new Parser();
 
-        lol = 4458454
+//kaspersObject = Text
+//kaspersObject.value = "The end of this line is a backslash\\"
+//kaspersObject.bar = "Here comes \\ a backslash in the middle"
+// a = \${"effe\"}
 
+        $input = file_get_contents('/home/macode/untouched/neos-development3/Packages/Neos/Neos.Fusion/Tests/Functional/Parser/lol.fusion');
 
-        c = fwef {
-        }
+//        $input = 'a = \'fewfw\\\\\'';
 
-        prototype: a extends: b {
-            lol = "fwef"
-            delete: .lol
-        }
+//        $input = <<<Lol
+//
+//
+//a = \${'fewfw\\\\'}
+//
+//Lol;
 
+        \Neos\Flow\var_dump($input);
 
-
-
-
-
-
-        Fusion;
-
-//        $input = "true=false";
+//        $input = "       \n                 a=1331  \n";
 
         $output = $parser->parse($input);
 

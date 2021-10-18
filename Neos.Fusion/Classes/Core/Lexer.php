@@ -9,36 +9,47 @@ namespace Neos\Fusion\Core;
  */
 class Lexer
 {
-    const PATTERN_EEL_EXPRESSION = '/
-  ^\${(?P<exp>
-    (?:
-      { (?P>exp) }			# match object literal expression recursively
-      |$(*SKIP)(*FAIL)     # Skip and fail, if at end
-      |[^{}"\']+				# simple eel expression without quoted strings
-      |"[^"\\\\]*				# double quoted strings with possibly escaped double quotes
+    const PATTERN_EEL_EXPRESSION = <<<'REGEX'
+    /
+      ^\${(?P<exp>
         (?:
-          \\\\.			# escaped character (quote)
-          [^"\\\\]*		# unrolled loop following Jeffrey E.F. Friedl
-        )*"
-      |\'[^\'\\\\]*			# single quoted strings with possibly escaped single quotes
-        (?:
-          \\\\.			# escaped character (quote)
-          [^\'\\\\]*		# unrolled loop following Jeffrey E.F. Friedl
-        )*\'
-    )*
-  )}
-  /x';
+          { (?P>exp) }          # match object literal expression recursively
+          |$(*SKIP)(*FAIL)      # Skip and fail, if at end
+          |[^{}"']+	            # simple eel expression without quoted strings
+          |"[^"\\]*			    # double quoted strings with possibly escaped double quotes
+            (?:
+              \\.			# escaped character (quote)
+              [^"\\]*		# unrolled loop following Jeffrey E.F. Friedl
+            )*"
+          |'[^'\\]*			# single quoted strings with possibly escaped single quotes
+            (?:
+              \\.			# escaped character (quote)
+              [^'\\]*		# unrolled loop following Jeffrey E.F. Friedl
+            )*'
+        )*
+      )}
+    /x
+    REGEX;
+
 
     public $string = '';
     public $cursor = 0;
     protected $SPEC = [];
 
+    /**/
+
     protected function lexerSpec()
     {
         return [
+            // TODO: No null at all.
+
+            // Comments
             ['/^\\/\\/.*/', null /* skip */],
             ['/^#.*/', null /* skip */],
-            ['/^\/\\*[\\s\\S]*?\\*\//', null /* skip */],
+
+            // TODO: /**/*.fusion is not a comment!
+            // lookbehind: (?!\*)
+            ['/^\/\\*[\\s\\S]*?\\*\/(?!\*)/', null /* skip */],
 
             ['/^[\n\r]+/', 'NEWLINE'],
             ['/^[ \t]+/', 'SPACE'],
@@ -52,58 +63,67 @@ class Lexer
             ['/^prototype\\s*:\\s+/', 'PROTOTYPE'],
             ['/^include\\s*:/', 'INCLUDE'],
             ['/^namespace\\s*:/', 'NAMESPACE'],
+            ['/^prototype\\s*\(/', 'PROTOTYPE_START'],
 
             // Symbols
-            // Semicolon as delimiter with optional WhiteSpace and NewLines
             ['/^;/', ';'],
             ['/^{/', '{'],
             ['/^}/', '}'],
             ['/^\./', '.'],
             ['/^:/', ':'],
             ['/^\)/', ')'],
+            ['/^-/', '-'],
+            ['/^\\*/', '*'],
+            ['/^\//', '/'],
+            ['/^_/', '_'],
             ['/^@/', '@'],
 
-
-            // Operators
             ['/^=/', '='],
             ['/^</', '<'],
             ['/^>/', '>'],
 
+            ['/^[0-9]+/', 'DIGIT'],
+            ['/^[a-zA-Z]+/', 'LETTER'],
 
-            ['/^-?[0-9]+/', 'INTEGER'],
-            ['/^\\.[0-9]+/', 'DECIMAL'],
+            // Strings
+            // /^"(?:\\"|[^"])*"/
+            [<<<'REGEX'
+            /^"[^"\\]*(?:\\.[^"\\]*)*"/
+            REGEX, 'STRING'],
 
-            // Path Segments
-            ['/^prototype\\s*\(/', 'PROTOTYPE_START'],
+            // /^'(?:\\'|[^'])*'/
+            [<<<'REGEX'
+            /^'[^'\\]*(?:\\.[^'\\]*)*'/
+            REGEX, 'CHAR'],
 
-
-            // colons in object name
-            ['/^[a-zA-Z0-9]+/', 'ALPHANUMERIC'],
-
-            // should be good to go as al
-            // dont end with : - would solve exentensibility and that fuison object problem
-            ['/^[a-zA-Z0-9_\-]+/', 'a-zA-Z0-9_\-'],
-
-
-            // dot cannot be present here!
-            ['/^[a-zA-Z0-9*\\/_-]+/', 'FILEPATH'],
-
-
-
-            ['/^"(?:\\\"|[^"])+"/', 'STRING'],
-            ['/^\'(?:\\\\\'|[^\'])+\'/', 'CHAR'],
-
-
-
+            // Expressions
             [self::PATTERN_EEL_EXPRESSION, 'EEL_EXPRESSION'],
-            ['/^\${/', 'UNCLOSED_EEL_EXPRESSION'], // the order is lower than the first which would mach a whole eel expression
+            // add content to this match?
+            ['/^\${/', 'UNCLOSED_EEL_EXPRESSION'],
         ];
     }
+
+
+    public function tokenize(string $string): TokenStream
+    {
+        $this->initialize($string);
+
+        $tokenList = [];
+
+        while ($this->hasMoreTokens()) {
+            $tokenList[] = $this->getNextToken();
+        }
+
+        $tokenList[] = $this->toToken('EOF');
+
+        return new TokenStream($tokenList);
+    }
+
 
     /**
      * Initializes the string and SPEC.
      */
-    public function init(string $string): void
+    protected function initialize(string $string): void
     {
         $this->SPEC = array_reverse($this->lexerSpec());
         $this->string = $string;
@@ -112,7 +132,7 @@ class Lexer
     /**
      * Obtains next token.
      */
-    public function getNextToken(): array
+    protected function getNextToken(): array
     {
         if ($this->hasMoreTokens() === false) {
             return $this->toToken('EOF');
@@ -132,10 +152,6 @@ class Lexer
                 continue;
             }
 
-            if ($tokenType === null) {
-                return $this->getNextToken();
-            }
-
             $tokenLength = strlen($tokenValue);
 
             // match will overrule any prev same len match
@@ -145,28 +161,29 @@ class Lexer
         krsort($matchedTokens);
 
         foreach ($matchedTokens as $tokenLength => $token) {
-            print_r($token);
+
+            if (FLOW_APPLICATION_CONTEXT === 'Development') {
+                print_r($token);
+            }
+
             $this->cursor += $tokenLength;
+
+            if ($token['type'] === null) {
+                return $this->getNextToken();
+            }
+
             return $token;
         }
 
-        throw new \Error('this doesnt exists ... unexpected token while lexing: ' . $string[0]);
+        throw new \Exception('this doesnt exists ... unexpected token while lexing: ' . $string[0]);
     }
 
-    public function toToken($tokenName, $tokenValue = null): array
+    public function toToken($tokenName, $tokenValue = ''): array
     {
         return [
             'type' => $tokenName,
             'value' => $tokenValue,
         ];
-    }
-
-    /**
-     * Whether we still have more tokens.
-     */
-    protected function hasMoreTokens(): bool
-    {
-        return $this->cursor < strlen($this->string);
     }
 
     protected function match(string $regexp, string $string)
@@ -185,10 +202,10 @@ class Lexer
     }
 
     /**
-     * If the lexer reached EOF.
+     * Whether we still have more tokens.
      */
-    protected function isEOF(): bool
+    protected function hasMoreTokens(): bool
     {
-        return $this->cursor === strlen($this->string);
+        return $this->cursor < strlen($this->string);
     }
 }

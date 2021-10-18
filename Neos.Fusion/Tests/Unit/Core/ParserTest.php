@@ -38,11 +38,12 @@ class ParserTest extends UnitTestCase
      */
     public function setUp(): void
     {
-        $this->mockObjectManager = $this->createMock(ObjectManagerInterface::class);
-        $this->mockObjectManager->expects(self::any())->method('isRegistered')->will(self::returnCallback([$this, 'objectManagerIsRegisteredCallback']));
-
-        $this->parser = $this->getAccessibleMock(Parser::class, ['dummy']);
-        $this->parser->_set('objectManager', $this->mockObjectManager);
+        $this->parser = new Parser();
+//        $this->mockObjectManager = $this->createMock(ObjectManagerInterface::class);
+//        $this->mockObjectManager->expects(self::any())->method('isRegistered')->will(self::returnCallback([$this, 'objectManagerIsRegisteredCallback']));
+//
+//        $this->parser = $this->getAccessibleMock(Parser::class, ['dummy']);
+//        $this->parser->_set('objectManager', $this->mockObjectManager);
     }
 
     /**

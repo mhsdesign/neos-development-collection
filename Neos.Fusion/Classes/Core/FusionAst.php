@@ -2,6 +2,7 @@
 
 namespace Neos\Fusion\Core;
 
+use Neos\Fusion;
 use Neos\Utility\Arrays;
 
 /**
@@ -101,6 +102,14 @@ class FusionAst
     public static function objectPathIsPrototype($path): bool
     {
         return ($path[count($path) - 2] ?? null) === '__prototypes';
+    }
+
+    public static function getParentPath($path): array
+    {
+        if (self::objectPathIsPrototype($path)) {
+            return array_slice($path, 0, -2);
+        }
+        return array_slice($path, 0, -1);
     }
 
     /**
