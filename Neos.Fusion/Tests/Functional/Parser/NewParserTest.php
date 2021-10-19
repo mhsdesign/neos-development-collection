@@ -13,14 +13,14 @@ class NewParserTest extends TestCase
 
         return [
             [
-                <<<Fusion
+                <<<'Fusion'
                 a {
                 }
                 Fusion,
                 []
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a = ""
                 a {
                 }
@@ -28,7 +28,7 @@ class NewParserTest extends TestCase
                 ['a' => '']
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a {
                     b = "c"
                 }
@@ -36,7 +36,7 @@ class NewParserTest extends TestCase
                 ['a' => ['b' => 'c']]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a {
                     b {
                         c {
@@ -48,7 +48,7 @@ class NewParserTest extends TestCase
                 ['a' => ['b' => ['c' => ['d' => 'e']]]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a {
                     b {
                         c {
@@ -59,14 +59,14 @@ class NewParserTest extends TestCase
                 []
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a { b = ""
                 }
                 Fusion,
                 ['a' => ['b' => ""]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a
                 {
                     b = ""
@@ -75,7 +75,7 @@ class NewParserTest extends TestCase
                 ['a' => ['b' => ""]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 a = ""
                 a {
                 }
@@ -88,11 +88,36 @@ class NewParserTest extends TestCase
     }
 
 
+    public function commentsTest()
+    {
+        $obj = fn(string $name):array => ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
+        return[
+            [
+                <<<'Fusion'
+                a = 'b' // hallo ich bin ein comment
+                b = -123.4 # hallo ich bin ein comment
+                c = Neos.Fusion:Hi /* hallo ich bin ein comment */
+                Fusion,
+                ['a' => 'b', 'b' => -123.4, 'c' => $obj('Neos.Fusion:Hi')]
+            ],
+            [
+                <<<'Fusion'
+                // hallo ich bin ein comment
+                # hallo ich bin ein comment
+                /* hallo ich bin
+
+                 ein comment */
+                Fusion,
+                []
+            ],
+        ];
+    }
+
     public function prototypeDeclarationAndInheritance()
     {
         return [
             [
-                <<<Fusion
+                <<<'Fusion'
                 prototype(Neos.Foo:Bar2) {
                     baz = 'Foo'
                 }
@@ -100,20 +125,20 @@ class NewParserTest extends TestCase
                 ['__prototypes' => ['Neos.Foo:Bar2' => ['baz' => 'Foo']]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 prototype(Neos.Foo:Bar2).baz = 'Foo'
                 Fusion,
                 ['__prototypes' => ['Neos.Foo:Bar2' => ['baz' => 'Foo']]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 prototype(Neos.Foo:Bar2) {
                 }
                 Fusion,
                 []
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
                 prototype(Neos.Foo:Bar2) {
                 }
                 prototype(Neos.Foo:Bar2).baz = 42
@@ -121,7 +146,15 @@ class NewParserTest extends TestCase
                 ['__prototypes' => ['Neos.Foo:Bar2' => ['baz' => 42]]]
             ],
             [
-                <<<Fusion
+                <<<'Fusion'
+                prototype(Neos.Foo:Bar2) {
+                    bar = 1
+                } hello = "w"
+                Fusion,
+                ['__prototypes' => ['Neos.Foo:Bar2' => ['bar' => 1]], 'hello' => "w"]
+            ],
+            [
+                <<<'Fusion'
                 prototype(Neos.Foo:Bar3) < prototype(Neos.Foo:Bar2) {
                     foo = ''
                 }
@@ -138,6 +171,7 @@ class NewParserTest extends TestCase
     public function throwsTest()
     {
         return [
+            ['fwefw/*fwef*/fewfwe1212 = ""'], // no comments inside everywhere
             ['namespace: cms=\-notvalid-\Fusion\Fixtures'], // Checks if a leading slash in the namespace declaration throws an exception
             ['"" = ""'], // no empty strings in path
             ['a = 1354.154.453'], // this is not an object nor a number
@@ -152,17 +186,30 @@ class NewParserTest extends TestCase
             ['namespace: "a=Neos.Fusion"'], // no namespace with string
             ['{}'], // block out of context
             ['a = ${ fwef fewf {}'], // unclosed eel
-            [<<<Fusion
+            [<<<'Fusion'
             a = "fwfe"
             }
             Fusion], // block out of context
             ['a { b = "" }'], // no end of line detected
             // An exception was thrown while Neos tried to render your page
-            [<<<Fusion
+            [<<<'Fusion'
             a = Neos.Fusion:Value {
               value = Neos.Fusion:Join {
                 a = "wfef"
             }
+            Fusion],
+            [<<<'Fusion'
+            baz =
+            'Foo'
+            Fusion],
+            [<<<'Fusion'
+            baz
+            =
+            'Foo'
+            Fusion],
+            [<<<'Fusion'
+            baz
+            = 'Foo'
             Fusion],
         ];
     }
@@ -173,28 +220,28 @@ class NewParserTest extends TestCase
             ['a < b', ['b' => [], 'a' => []]],
             ['n.a < b', ['b' => [], 'n' => ['a' => []]]],
 
-            [<<<Fusion
+            [<<<'Fusion'
             b = "hui"
             a < b
             Fusion, ['b' => 'hui', 'a' => 'hui']],
 
-            [<<<Fusion
+            [<<<'Fusion'
             b = "hui"
             a < .b
             Fusion, ['b' => 'hui', 'a' => 'hui']],
 
-            [<<<Fusion
+            [<<<'Fusion'
             b = "hui"
             a < b
             b = "wont change a"
             Fusion, ['b' => 'wont change a', 'a' => 'hui']],
 
-            [<<<Fusion
+            [<<<'Fusion'
             n.b = "hui"
             n.a < .b
             Fusion, ['n' => ['b' => 'hui', 'a' => 'hui']]],
 
-            [<<<Fusion
+            [<<<'Fusion'
             n.m {
                 b = "hui"
                 a < .b
@@ -266,7 +313,9 @@ class NewParserTest extends TestCase
     public function stringAndCharValueAssign()
     {
         return [
-            ['a = "The end of this line is are two backslash \\\\"', ['a' => 'The end of this line is are two backslash \\']],
+            [<<<'Fusion'
+            a = 'The end of this line is one escaped backslash \\'
+            Fusion, ['a' => 'The end of this line is one escaped backslash \\']],
             ['a = ""', ['a' => '']],
             ['a = \'\'', ['a' => '']],
             ['a = "a\"b"', ['a' => 'a"b']],
@@ -294,6 +343,7 @@ class NewParserTest extends TestCase
 
     /**
      * @test
+     * @dataProvider commentsTest
      * @dataProvider simpleValueAssign
      * @dataProvider unexpectedCopyAssigment
      * @dataProvider unexpectedObjectPaths

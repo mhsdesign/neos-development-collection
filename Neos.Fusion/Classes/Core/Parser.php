@@ -27,6 +27,8 @@ use Neos\Fusion\Exception;
 class Parser extends AbstractParser
 {
     const WHITESPACE = ['SPACE', 'NEWLINE'];
+    const COMMENTS = ['//COMMENT', '#COMMENT', '/*COMMENT*/'];
+
     /**
      * The Fusion object tree, created by this parser.
      * @var array
@@ -53,21 +55,6 @@ class Parser extends AbstractParser
         'default' => 'Neos.Fusion'
     ];
 
-    protected const REMOVE_WHITESPACE = [0 => self::WHITESPACE];
-    protected const REMOVE_SPACE = [0 => ['SPACE']];
-    protected const IGNORE_NEWLINE = [0 => ['NEWLINE']];
-    protected const VTOKEN_PATHIDENTIFIER = [
-        'V:PATHIDENTIFIER' => ['DIGIT', ':', '-', '_', 'LETTER', 'TRUE', 'FALSE', 'NULL']
-    ];
-    // TODO: Object like 4.Fusion:What
-    // True.Fusion
-    protected const VTOKEN_OBJECTNAMEPART = [
-        'V:OBJECTNAMEPART' => ['LETTER', 'DIGIT', '.', 'TRUE', 'FALSE', 'NULL']
-    ];
-    protected const VTOKEN_FILEPATTERN = [
-        'V:FILEPATTERN' => ['DIGIT', ':', '*', '-', '_', '/', '.', 'LETTER', 'TRUE', 'FALSE', 'NULL']
-    ];
-
     protected TokenStream $tokenStream;
 
 
@@ -89,7 +76,6 @@ class Parser extends AbstractParser
         if (is_string($sourceCode) === false) {
             throw new Fusion\Exception('Cannot parse Fusion - $sourceCode must be of type string!', 1180203775);
         }
-
         $this->objectTree = $objectTreeUntilNow;
         $this->contextPathAndFilename = $contextPathAndFilename;
         $this->tokenStream = $this->lexer->tokenize($sourceCode);
@@ -99,8 +85,22 @@ class Parser extends AbstractParser
         if ($buildPrototypeHierarchy) {
             FusionAst::buildPrototypeHierarchy($this->objectTree);
         }
-
         return $this->objectTree;
+    }
+
+    protected function parseOptBigSeparation(): void
+    {
+        while (in_array($this->peek()['type'], [...self::WHITESPACE, ...self::COMMENTS])) {
+            $this->consume();
+        }
+    }
+
+
+    protected function parseOptSmallSeparation(): void
+    {
+        while (in_array($this->peek()['type'], ['SPACE', ...self::COMMENTS])) {
+            $this->consume();
+        }
     }
 
     /**
@@ -147,13 +147,7 @@ class Parser extends AbstractParser
      */
     protected function parseStatement(): void
     {
-//        \Neos\Flow\var_dump($this->peek());
-
-//        $this->mergeNextToken([self::REMOVE_WHITESPACE, self::VTOKEN_PATHIDENTIFIER]);
-        $this->mergeNextToken([self::REMOVE_WHITESPACE, self::VTOKEN_PATHIDENTIFIER]);
-//        \Neos\Flow\var_dump($this->peek());
-
-
+        $this->parseOptBigSeparation();
         switch ($this->peek()['type']) {
             case 'NEWLINE':
             case ';':
@@ -179,7 +173,14 @@ class Parser extends AbstractParser
                $this->parseDeleteStatement();
                 return;
 
-            case 'V:PATHIDENTIFIER':
+            case 'DIGIT':
+            case 'LETTER':
+            case 'TRUE':
+            case 'FALSE':
+            case 'NULL':
+            case '_':
+            case '-':
+            case ':':
             case '@':
             case 'PROTOTYPE_START':
             case 'STRING':
@@ -233,7 +234,7 @@ class Parser extends AbstractParser
         }
     }
 
-    protected function isStartOfBlockStatement()
+    protected function isStartOfBlockStatement(): bool
     {
         // using here self::IGNORE_WHITESPACE will discard any newlines, which are needed in EndOfStatement
         return $this->peekIgnore(self::WHITESPACE)['type'] === '{';
@@ -269,7 +270,7 @@ class Parser extends AbstractParser
             return;
         }
 
-        $this->mergeNextToken([self::REMOVE_WHITESPACE]);
+        $this->parseOptSmallSeparation();
         $this->parseObjectOperation($path);
 
         if ($this->isStartOfBlockStatement()) {
@@ -277,6 +278,36 @@ class Parser extends AbstractParser
         } else {
             $this->parseEndOfStatement();
         }
+    }
+
+    /**
+     * FusionObjectNamePart
+     *  : LETTER
+     *  | DIGIT
+     *  | .
+     *  | TRUE
+     *  | FALSE
+     *  | NULL
+     *  ;
+     */
+    protected function parseFusionObjectNamePart(): string
+    {
+        $value = $this->consumeValueWhileInArray(['LETTER', 'DIGIT', '.', 'TRUE', 'FALSE', 'NULL']);
+        if ($value === null) {
+            throw new \Exception('Expected FusionObjectNamePart but got' . json_encode($this->peek()));
+        }
+        return $value;
+    }
+
+
+
+    protected function parseFilePattern()
+    {
+        $value = $this->consumeValueWhileInArray(['DIGIT', ':', '*', '-', '_', '/', '.', 'LETTER', 'TRUE', 'FALSE', 'NULL', '/*COMMENT*/', '#//COMMENT']);
+        if ($value === null) {
+            throw new \Exception('Expected FilePattern but got' . json_encode($this->peek()));
+        }
+        return $value;
     }
 
     /**
@@ -293,14 +324,14 @@ class Parser extends AbstractParser
         try {
             $this->expect('NAMESPACE');
 
-            $this->mergeNextToken([self::REMOVE_SPACE, self::VTOKEN_OBJECTNAMEPART]);
-            $namespaceAlias = $this->expect('V:OBJECTNAMEPART')['value'];
+            $this->parseOptSmallSeparation();
+            $namespaceAlias = $this->parseFusionObjectNamePart();
 
-            $this->mergeNextToken([self::REMOVE_SPACE]);
+            $this->parseOptSmallSeparation();
             $this->expect('=');
 
-            $this->mergeNextToken([self::REMOVE_SPACE, self::VTOKEN_OBJECTNAMEPART]);
-            $namespacePackageKey = $this->expect('V:OBJECTNAMEPART')['value'];
+            $this->parseOptSmallSeparation();
+            $namespacePackageKey = $this->parseFusionObjectNamePart();
 
         } catch (\Exception $e) {
             throw new Fusion\Exception('Invalid namespace declaration "' . $namespaceDeclaration . '"' . $this->renderCurrentFileAndLineInformation(), 1180547190);
@@ -319,8 +350,16 @@ class Parser extends AbstractParser
     {
         $this->expect('INCLUDE');
 
-        $this->mergeNextToken([self::REMOVE_SPACE ,self::VTOKEN_FILEPATTERN]);
-        $filePattern = $this->expect('V:FILEPATTERN')['value'];
+        $this->parseOptSmallSeparation();
+
+        switch ($this->peek()['type']) {
+            case 'STRING':
+            case 'CHAR':
+                $filePattern = $this->parseLiteral();
+                break;
+            default:
+                $filePattern = $this->parseFilePattern();
+        }
 
         $this->parseEndOfStatement();
         \Neos\Flow\var_dump($filePattern);
@@ -388,7 +427,7 @@ class Parser extends AbstractParser
      */
     protected function parseEndOfStatement(): void
     {
-        $this->mergeNextToken([self::REMOVE_SPACE]);
+        $this->parseOptSmallSeparation();
         switch ($this->peek()['type']){
             case 'EOF':
                 return;
@@ -409,16 +448,17 @@ class Parser extends AbstractParser
      */
     protected function parseBlockStatement(array $path)
     {
-        $this->mergeNextToken([self::REMOVE_WHITESPACE]);
+        $this->parseOptBigSeparation();
         $this->expect('{');
         array_push($this->currentObjectPathStack, $path);
 
-        if ($this->peekIgnore(self::WHITESPACE)['type'] !== '}') {
-            $this->parseStatementList(fn() => $this->peekIgnore(self::WHITESPACE)['type'] !== '}');
+        $isNotEndOfBlockStatement = fn():bool => $this->peekIgnore(self::WHITESPACE)['type'] !== '}';
+        if ($isNotEndOfBlockStatement()) {
+            $this->parseStatementList($isNotEndOfBlockStatement);
         }
 
         array_pop($this->currentObjectPathStack);
-        $this->mergeNextToken([self::REMOVE_WHITESPACE]);
+        $this->parseOptBigSeparation();
         $this->expect('}');
     }
 
@@ -448,13 +488,36 @@ class Parser extends AbstractParser
     protected function parseObjectPath(array $objectPathPrefix = []): array
     {
         $objectPath = $objectPathPrefix;
-
         do {
             array_push($objectPath, ...$this->parsePathSegment());
         } while ($this->lazyExpect('.'));
-
         return $objectPath;
     }
+
+
+
+    /**
+     * PathIdentifier
+     *  : LETTER
+     *  | DIGIT
+     *  | TRUE
+     *  | FALSE
+     *  | NULL
+     *  | :
+     *  | -
+     *  | _
+     *  ;
+     */
+    protected function parsePathIdentifier(): string
+    {
+        $value = $this->consumeValueWhileInArray(['DIGIT', ':', '-', '_', 'LETTER', 'TRUE', 'FALSE', 'NULL']);
+        if ($value === null) {
+            throw new \Exception('PathIdentifier but got' . json_encode($this->peek()));
+        }
+        return $value;
+    }
+
+
 
     /**
      * PathSegment
@@ -468,19 +531,23 @@ class Parser extends AbstractParser
      */
     protected function parsePathSegment(): array
     {
-        $this->mergeNextToken([self::VTOKEN_PATHIDENTIFIER]);
         $token = $this->peek();
-
         FusionAst::keyIsReservedParseTreeKey($token['value']);
 
         switch ($token['type']) {
-            case 'V:PATHIDENTIFIER':
-                return [$this->consume()['value']];
+            case 'DIGIT':
+            case 'LETTER':
+            case 'TRUE':
+            case 'FALSE':
+            case 'NULL':
+            case '_':
+            case '-':
+            case ':':
+                return [$this->parsePathIdentifier()];
 
             case '@':
                 $this->consume();
-                $this->mergeNextToken([self::VTOKEN_PATHIDENTIFIER]);
-                return ['__meta', $this->expect('V:PATHIDENTIFIER')['value']];
+                return ['__meta', $this->parsePathIdentifier()];
 
             case 'STRING':
             case 'CHAR':
@@ -514,13 +581,11 @@ class Parser extends AbstractParser
      */
     protected function parseFusionObjectName()
     {
-        $this->mergeNextToken([self::VTOKEN_OBJECTNAMEPART]);
-        $objectPart = $this->expect('V:OBJECTNAMEPART')['value'];
+        $objectPart = $this->parseFusionObjectNamePart();
 
         if ($this->lazyExpect(':')) {
             $namespace = $this->objectTypeNamespaces[$objectPart] ?? $objectPart;
-            $this->mergeNextToken([self::VTOKEN_OBJECTNAMEPART]);
-            $unqualifiedType = $this->expect('V:OBJECTNAMEPART')['value'];
+            $unqualifiedType = $this->parseFusionObjectNamePart();
         } else {
             $namespace = $this->objectTypeNamespaces['default'];
             $unqualifiedType = $objectPart;
@@ -543,7 +608,7 @@ class Parser extends AbstractParser
         switch ($this->peek()['type']) {
             case '=':
                 $this->consume();
-                $this->mergeNextToken([self::REMOVE_SPACE]);
+                $this->parseOptSmallSeparation();
                 $value = $this->parseValueAssignment();
                 $this->setValueInObjectTree($currentPath, $value);
                 return;
@@ -557,7 +622,7 @@ class Parser extends AbstractParser
             case 'EXTENDS':
                 $operator = $this->consume()['type'];
 
-                $this->mergeNextToken([self::REMOVE_SPACE]);
+                $this->parseOptSmallSeparation();
                 $sourcePath = $this->parseObjectPathAssignment(FusionAst::getParentPath($currentPath));
 
                 if ($this->pathsAreBothPrototype($currentPath, $sourcePath)) {
@@ -596,9 +661,10 @@ class Parser extends AbstractParser
                 return $this->parseEelExpression();
 
             case 'UNCLOSED_EEL_EXPRESSION':
+                // implement as catch if token is ${ or as error visitor?
                 // TODO: line info
-                $lol = substr($this->lexer->string, $this->lexer->cursor - 2, 20);
-                throw new \Exception('an eel expression starting with: ' . $lol);
+//                $lol = substr($this->lexer->string, $this->lexer->cursor - 2, 20);
+                throw new \Exception('an eel expression starting with: ');
 
             case 'DSL_EXPRESSION':
                 return $this->consume()['value'];
@@ -842,4 +908,6 @@ class Parser extends AbstractParser
             throw new Fusion\Exception('Tried to parse "' . join($targetPrototypeObjectPath, '.') . '" < "' . join($sourcePrototypeObjectPath, '.') . '", however one of the sides is nested (e.g. foo.prototype(Bar)). Setting up prototype inheritance is only supported at the top level: prototype(Foo) < prototype(Bar)' . $this->renderCurrentFileAndLineInformation(), 1358418019);
         }
     }
+
+
 }

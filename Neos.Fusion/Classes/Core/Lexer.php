@@ -31,25 +31,32 @@ class Lexer
     /x
     REGEX;
 
-
-    public $string = '';
-    public $cursor = 0;
+    protected $string = '';
+    protected $cursor = 0;
     protected $SPEC = [];
-
-    /**/
 
     protected function lexerSpec()
     {
         return [
-            // TODO: No null at all.
-
             // Comments
-            ['/^\\/\\/.*/', null /* skip */],
-            ['/^#.*/', null /* skip */],
+            ['/^\\/\\/.*/', '//COMMENT'],
+            ['/^#.*/', '#COMMENT'],
+//            ['/^\/\\*[\\s\\S]*?\\*\//', '/*COMMENT*/'],
+//            [<<<'REGEX'
+//            /^
+//              \/\*          # Comment Start
+//              [^\*]*        # Normal Case no
+//              (?:
+//                \*[^\/]     # special * was encountered next char should not be / (see */)
+//                [^\*]*        # unrolled loop jfriedel -> normal case
+//              )*
+//              \*\/         # end of comment */
+//            /
+//            REGEX, '/*COMMENT*/' /* skip */],
 
-            // TODO: /**/*.fusion is not a comment!
-            // lookbehind: (?!\*)
-            ['/^\/\\*[\\s\\S]*?\\*\/(?!\*)/', null /* skip */],
+            [<<<'REGEX'
+            /^\/\*[^\*]*(?:\*[^\/][^\*]*)*\*\//
+            REGEX, '/*COMMENT*/'],
 
             ['/^[\n\r]+/', 'NEWLINE'],
             ['/^[ \t]+/', 'SPACE'],
@@ -86,12 +93,10 @@ class Lexer
             ['/^[a-zA-Z]+/', 'LETTER'],
 
             // Strings
-            // /^"(?:\\"|[^"])*"/
             [<<<'REGEX'
             /^"[^"\\]*(?:\\.[^"\\]*)*"/
             REGEX, 'STRING'],
 
-            // /^'(?:\\'|[^'])*'/
             [<<<'REGEX'
             /^'[^'\\]*(?:\\.[^'\\]*)*'/
             REGEX, 'CHAR'],
@@ -125,22 +130,17 @@ class Lexer
      */
     protected function initialize(string $string): void
     {
-        $this->SPEC = array_reverse($this->lexerSpec());
+        $this->SPEC = $this->lexerSpec();
         $this->string = $string;
     }
 
     /**
      * Obtains next token.
      */
-    protected function getNextToken(): array
+    protected function getNextToken(): ?array
     {
-        if ($this->hasMoreTokens() === false) {
-            return $this->toToken('EOF');
-        }
-
+        // hasMoreTokens
         $string = substr($this->string, $this->cursor);
-
-        $matchedTokens = [];
 
         foreach ($this->SPEC as $value) {
 
@@ -152,27 +152,10 @@ class Lexer
                 continue;
             }
 
-            $tokenLength = strlen($tokenValue);
+            // TODO: MB STRLEN?
+            $this->cursor += strlen($tokenValue);
 
-            // match will overrule any prev same len match
-            $matchedTokens[$tokenLength] = $this->toToken($tokenType, $tokenValue);
-        }
-
-        krsort($matchedTokens);
-
-        foreach ($matchedTokens as $tokenLength => $token) {
-
-            if (FLOW_APPLICATION_CONTEXT === 'Development') {
-                print_r($token);
-            }
-
-            $this->cursor += $tokenLength;
-
-            if ($token['type'] === null) {
-                return $this->getNextToken();
-            }
-
-            return $token;
+            return $this->toToken($tokenType, $tokenValue);
         }
 
         throw new \Exception('this doesnt exists ... unexpected token while lexing: ' . $string[0]);
@@ -180,6 +163,12 @@ class Lexer
 
     public function toToken($tokenName, $tokenValue = ''): array
     {
+        if (FLOW_APPLICATION_CONTEXT === 'Development') {
+            print_r([
+                'type' => $tokenName,
+                'value' => $tokenValue,
+            ]);
+        }
         return [
             'type' => $tokenName,
             'value' => $tokenValue,
@@ -194,8 +183,12 @@ class Lexer
         if ($isMatch === false) {
             throw new \Exception("the regular expression" . $regexp . 'throws an error on this string:' . $string, 1);
         }
-        // 0 length match as position marker is not use full
+        // 0 length match as position marker is not usefull
         if (strlen($matches[0]) === 0) {
+            if (FLOW_APPLICATION_CONTEXT === 'Development') {
+                \Neos\Flow\var_dump($regexp);
+                \Neos\Flow\var_dump($string);
+            }
             return null;
         }
         return $matches[0];

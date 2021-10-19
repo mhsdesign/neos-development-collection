@@ -72,18 +72,19 @@ class FusionCommandController extends CommandController
 //kaspersObject.bar = "Here comes \\ a backslash in the middle"
 // a = \${"effe\"}
 
-        $input = file_get_contents('/home/macode/untouched/neos-development3/Packages/Neos/Neos.Fusion/Tests/Functional/Parser/lol.fusion');
+//        $input = file_get_contents('/home/macode/untouched/neos-development3/Packages/Neos/Neos.Fusion/Tests/Functional/Parser/lol.fusion');
+//        $input = file_get_contents('/home/macode/untouched/neos-development3/Packages/Neos/Neos.Fusion/Tests/Unit/Core/Fixtures/ParserTestFusionComments01.fusion');
+
 
 //        $input = 'a = \'fewfw\\\\\'';
 
-//        $input = <<<Lol
-//
-//
-//a = \${'fewfw\\\\'}
-//
-//Lol;
+        $input = <<<'Lol'
 
-        \Neos\Flow\var_dump($input);
+include: fwefew/**/*.f.wefwe
+
+Lol;
+
+//        \Neos\Flow\var_dump($input);
 
 //        $input = "       \n                 a=1331  \n";
 

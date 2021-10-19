@@ -27,7 +27,6 @@ class TokenStream implements \Iterator, \Countable
                 return $this->tokens[$i];
             }
         }
-
         return null;
     }
 
@@ -64,62 +63,5 @@ class TokenStream implements \Iterator, \Countable
     public function count(): int
     {
         return count($this->tokens);
-    }
-
-    public function mergeToNextToken(array $virtualTokens): ?bool
-    {
-
-        foreach ($virtualTokens as $virtualToken) {
-
-            foreach ($virtualToken as $virtualTokenType => $tokenTypesToCombine) {
-                if (in_array($this->current()['type'], $tokenTypesToCombine)) {
-
-                    $combinedTokenValue = $this->current()['value'];
-
-//                    \Neos\Flow\var_dump($this->tokens);
-
-                    $tokensBeforeMerge = array_slice($this->tokens, 0, $this->pointer);
-
-
-//                    $nextTokenPointer = $this->pointer;
-
-//                    do {
-//                        $nextTokenPointer++;
-//                        $nextToken = $this->tokens[$nextTokenPointer];
-//                        $combinedTokenValue .= $nextToken['value'];
-//
-//                    } while (in_array($nextToken['type'], $tokenTypesToCombine));
-
-//
-                    $nextTokenPointer = $this->pointer+1;
-                    $nextToken = $this->tokens[$nextTokenPointer];
-
-                    while (in_array($nextToken['type'], $tokenTypesToCombine)) {
-                        $nextTokenPointer +=1;
-                        $combinedTokenValue .= $nextToken['value'];
-                        $nextToken = $this->tokens[$nextTokenPointer];
-                    }
-
-                    $tokensAfterMerge = array_slice($this->tokens, $nextTokenPointer);
-
-                    if ($virtualTokenType === 0) {
-                        $this->tokens = [...$tokensBeforeMerge, ...$tokensAfterMerge];
-                        return null;
-                    }
-
-                    // TODO: also add here line number etc...
-                    $mergedToken = [
-                        'type' => $virtualTokenType,
-                        'value' => $combinedTokenValue
-                    ];
-
-                    $this->tokens = [...$tokensBeforeMerge, $mergedToken, ...$tokensAfterMerge];
-                    return true;
-                }
-                // only first els
-                break;
-            }
-        }
-        return false;
     }
 }

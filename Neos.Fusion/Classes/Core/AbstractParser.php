@@ -26,8 +26,6 @@ use Neos\Fusion\Exception;
 // class Parser implements ParserInterface
 abstract class AbstractParser
 {
-    protected array $lookahead;
-
     /**
      * @Flow\Inject
      * @var Lexer
@@ -36,65 +34,21 @@ abstract class AbstractParser
 
     protected TokenStream $tokenStream;
 
-
-
-// make peek recursive otput for:  few454fewf f
-// other tokens pushed into line need to be used secods time of peek
-
-//Flow Variable Dump
-//array(2)
-//integer 0 => array(2)
-//string "type" (4) => string "V:LOL" (5)
-//string "value" (5) => string "few454fewf::::::tokenStack" (26)
-//integer 1 => array(2)
-//string "type" (4) => string "SPACE" (5)
-//string "value" (5) => string " " (1)
-//
-//Flow Variable Dump
-//array(3)
-//integer 0 => array(2)
-//string "type" (4) => string "SPACE" (5)
-//string "value" (5) => string " " (1)
-//integer 1 => array(2)
-//string "type" (4) => string "Moin" (4)
-//string "value" (5) => string "few454fewf::::::tokenStack::::::tokenStack" (42)
-//integer 2 => array(2)
-//string "type" (4) => string "LETTER" (6)
-//string "value" (5) => string "f" (1)
-//
-//Array
-//(
-//[type] => SPACE
-//[value] =>
-//)
-
-    protected function mergeNextToken(array $virtualTokens): void
+    protected function consumeValueWhileInArray(array $tokenTypes): ?string
     {
-        // the token stack holds all lexed tokens and those combined to virtual tokens, the first element reset()
-        // will hold the latest. The first el will be cleaned with consume();
-
-        $mergeStatus = $this->tokenStream->mergeToNextToken($virtualTokens);
-
-        if ($mergeStatus === true) {
-            $this->lookahead = $this->tokenStream->current();
-        } elseif ($mergeStatus === null) {
-            $this->mergeNextToken($virtualTokens);
+        $mergedValues = '';
+        while (in_array($this->peek()['type'], $tokenTypes)) {
+            $mergedValues .= $this->consume()['value'];
         }
-
-        $this->lookahead = $this->tokenStream->current();
-
+        if ($mergedValues === '') {
+            return null;
+        }
+        return $mergedValues;
     }
 
     protected function peekIgnore(array $ignoreTokens)
     {
-
         return $this->tokenStream->getNextNotIgnoredToken($this->tokenStream->getPointer(), $ignoreTokens);
-
-
-//        $isdigit('/^-$/', '?', '/^DIGIT$/', ['/^\\./', '/^DIGIT$/'], '?');
-//        $isObject('/^(DIGIT|LETTER|\\.)/', '+', [':', '/^(DIGIT|LETTER|\\.)/', '/^\\+/'], '?');
-        // 56346546.545.
-
     }
 
     /**
@@ -112,11 +66,9 @@ abstract class AbstractParser
         $token = $this->peek();
 
         if ($token['type'] === 'EOF') {
-            throw new \Error("end of input expected" . $tokenType);
+            throw new \Error("end of input");
         }
-
         $this->tokenStream->next();
-        $this->lookahead = $this->tokenStream->current();
         return $token;
     }
 
@@ -125,23 +77,18 @@ abstract class AbstractParser
      */
     protected function expect(string $tokenType = null): array
     {
-        if ($this->peek()['type'] === $tokenType) {
+        $token = $this->peek();
+        if ($token['type'] === $tokenType && $token['type'] !== 'EOF') {
             return $this->consume();
         }
-
-        throw new \Exception("unexpected token: '" . json_encode($this->peek()) . "' expected: '" . $tokenType . "'");
+        throw new \Exception("unexpected token: '" . json_encode($token) . "' expected: '" . $tokenType . "'");
     }
-
 
     /**
      * Checks, if the token type matches the current, if so consume it and return true.
      */
-    protected function lazyExpect($tokenType, $virtualTokens = null): ?bool
+    protected function lazyExpect($tokenType): ?bool
     {
-        if ($virtualTokens !== null) {
-            $this->mergeNextToken($virtualTokens);
-        }
-
         $token = $this->peek();
 
         if ($token['type'] === $tokenType) {
