@@ -2,11 +2,6 @@
 
 namespace Neos\Fusion\Core;
 
-/**
- * Lexer class.
- *
- * Lazily pulls a token from a stream.
- */
 class Lexer
 {
     const PATTERN_EEL_EXPRESSION = <<<'REGEX'
@@ -157,7 +152,6 @@ class Lexer
 
             return $this->toToken($tokenType, $tokenValue);
         }
-
         throw new \Exception('this doesnt exists ... unexpected token while lexing: ' . $string[0]);
     }
 
@@ -183,7 +177,7 @@ class Lexer
         if ($isMatch === false) {
             throw new \Exception("the regular expression" . $regexp . 'throws an error on this string:' . $string, 1);
         }
-        // 0 length match as position marker is not usefull
+        // 0 length match as position marker is not useful
         if (strlen($matches[0]) === 0) {
             if (FLOW_APPLICATION_CONTEXT === 'Development') {
                 \Neos\Flow\var_dump($regexp);
@@ -193,6 +187,8 @@ class Lexer
         }
         return $matches[0];
     }
+
+
 
     /**
      * Whether we still have more tokens.

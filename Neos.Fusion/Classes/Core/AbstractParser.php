@@ -14,27 +14,86 @@ namespace Neos\Fusion\Core;
 
 use Neos\Flow\Annotations as Flow;
 use Neos\Fusion;
-use Neos\Fusion\Exception;
 
-//set_time_limit(2);
-
-/**
- * The Fusion Parser
- *
- * @api
- */
-// class Parser implements ParserInterface
 abstract class AbstractParser
 {
     /**
-     * @Flow\Inject
-     * @var Lexer
+     * @var TokenStream
      */
-    protected $lexer;
-
     protected TokenStream $tokenStream;
 
-    protected function consumeValueWhileInArray(array $tokenTypes): ?string
+    /**
+     * get the current token from the token stream
+     * @param int $offset
+     * @return array|null
+     */
+    protected function peek(int $offset = 0): ?array
+    {
+        return $this->tokenStream->getTokenAt($this->tokenStream->getPointer() + $offset);
+    }
+
+    /**
+     * get next token but ignore passed tokens
+     * @param array $ignoreTokens
+     * @return array|null
+     */
+    protected function peekIgnore(array $ignoreTokens): ?array
+    {
+        return $this->tokenStream->getNextNotIgnoredToken($this->tokenStream->getPointer(), $ignoreTokens);
+    }
+
+    /**
+     * consume the current token and move forward
+     * @return array
+     * @throws Fusion\Exception
+     */
+    protected function consume(): array
+    {
+        $token = $this->peek();
+        if ($token['type'] === 'EOF') {
+            throw new Fusion\Exception("end of input cannot consume token");
+        }
+        $this->tokenStream->next();
+        return $token;
+    }
+
+    /**
+     * Expects a token of a given type.
+     * @param string|null $tokenType
+     * @return array
+     * @throws Fusion\Exception
+     */
+    protected function expect(string $tokenType = null): array
+    {
+        $token = $this->peek();
+        if ($token['type'] === $tokenType && $token['type'] !== 'EOF') {
+            return $this->consume();
+        }
+        throw new Fusion\Exception("unexpected token: '" . json_encode($token) . "' expected: '" . $tokenType . "'");
+    }
+
+    /**
+     * Checks, if the token type matches the current, if so consume it and return true.
+     * @param $tokenType
+     * @return bool|null
+     * @throws Fusion\Exception
+     */
+    protected function lazyExpect($tokenType): ?bool
+    {
+        if ($this->peek()['type'] === $tokenType) {
+            $this->consume();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * consumes tokens of specified types as long as any of them is present and return the concat string value.
+     * @param array $tokenTypes
+     * @return string|null
+     * @throws Fusion\Exception
+     */
+    protected function lazyExpectTokens(array $tokenTypes): ?string
     {
         $mergedValues = '';
         while (in_array($this->peek()['type'], $tokenTypes)) {
@@ -44,57 +103,5 @@ abstract class AbstractParser
             return null;
         }
         return $mergedValues;
-    }
-
-    protected function peekIgnore(array $ignoreTokens)
-    {
-        return $this->tokenStream->getNextNotIgnoredToken($this->tokenStream->getPointer(), $ignoreTokens);
-    }
-
-    /**
-     * Generate a token via the lexer. It caches the result which will be returned in the future until the token is consumed.
-     * If the Lexer set the type to 'NO_TOKEN_FOUND' peek() will ask the lexer again. (Usefull when the Lexer State is changed)
-     */
-    public function peek(int $offset = 0): ?array
-    {
-        return $this->tokenStream->getTokenAt($this->tokenStream->getPointer() + $offset);
-    }
-
-
-    protected function consume(): array
-    {
-        $token = $this->peek();
-
-        if ($token['type'] === 'EOF') {
-            throw new \Error("end of input");
-        }
-        $this->tokenStream->next();
-        return $token;
-    }
-
-    /**
-     * Expects a token of a given type.
-     */
-    protected function expect(string $tokenType = null): array
-    {
-        $token = $this->peek();
-        if ($token['type'] === $tokenType && $token['type'] !== 'EOF') {
-            return $this->consume();
-        }
-        throw new \Exception("unexpected token: '" . json_encode($token) . "' expected: '" . $tokenType . "'");
-    }
-
-    /**
-     * Checks, if the token type matches the current, if so consume it and return true.
-     */
-    protected function lazyExpect($tokenType): ?bool
-    {
-        $token = $this->peek();
-
-        if ($token['type'] === $tokenType) {
-            $this->consume();
-            return true;
-        }
-        return false;
     }
 }

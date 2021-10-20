@@ -10,7 +10,6 @@ class NewParserTest extends TestCase
 
     public function pathBlockTest()
     {
-
         return [
             [
                 <<<'Fusion'
@@ -83,8 +82,40 @@ class NewParserTest extends TestCase
                 ['a' => '']
             ],
         ];
+    }
 
-
+    public function unexpectedBlocksWork()
+    {
+        return [
+            [
+                <<<'Fusion'
+                a = "string" {
+                    unuse = "full"
+                }
+                Fusion
+            ],
+            [
+                <<<'Fusion'
+                a = ${eel stuff} {
+                    unuse = "full"
+                }
+                Fusion,
+            ],
+            [
+                <<<'Fusion'
+                a = -123132 {
+                    unuse = "full"
+                }
+                Fusion,
+            ],
+            [
+                <<<'Fusion'
+                a > {
+                    use = "full"
+                }
+                Fusion,
+            ],
+        ];
     }
 
 
@@ -110,6 +141,16 @@ class NewParserTest extends TestCase
                 Fusion,
                 []
             ],
+            ['a = /*fwefe*/ 123456', ['a' => 123456]],
+            ['a /*fwefe*/ = 123456', ['a' => 123456]],
+            ['/*fwefe*/ a = 123456', ['a' => 123456]],
+        ];
+    }
+
+    public function commentsExceptionTest()
+    {
+        return[
+            ['a = // hallo ich bin ein comment 454545'],
         ];
     }
 
@@ -211,6 +252,18 @@ class NewParserTest extends TestCase
             baz
             = 'Foo'
             Fusion],
+            // strip slashes will convert to Binary String, which makes no sense ...
+//            [<<<'Fusion'
+//            a = "a\b"
+//            Fusion, ['a' => 'a\\b']],
+            [<<<'Fusion'
+            a = ${hello open left eel and eof file...
+            Fusion],
+            [<<<'Fusion'
+            a = ${hello open left eel
+            b {
+            }
+            Fusion],
         ];
     }
 
@@ -307,6 +360,45 @@ class NewParserTest extends TestCase
         ];
     }
 
+    public function eelValueAssign() {
+        $eel = fn(string $exp):array => ['__eelExpression' => $exp, '__value' => null, '__objectType' => null];
+        yield [
+            <<<'Fusion'
+            a = ${}
+            Fusion,
+            ['a' => $eel('')]
+        ];
+        yield [
+            <<<'Fusion'
+            a = ${hello}
+            Fusion,
+            ['a' => $eel('hello')]
+        ];
+        yield [
+            <<<'Fusion'
+            a = ${"string with escapes \" and {]}][{ and escaped bs at end \\"}
+            Fusion,
+            ['a' => $eel('"string with escapes \\" and {]}][{ and escaped bs at end \\\\"')]
+        ];
+        yield [
+            <<<'Fusion'
+            a = ${"eel
+            multi
+            line
+            strips
+            newlines"
+            }
+            Fusion,
+            ['a' => $eel('"eelmultilinestripsnewlines"')]
+        ];
+        yield [
+            <<<'Fusion'
+            a = ${fun({
+            })}
+            Fusion,
+            ['a' => $eel('fun({})')]
+        ];
+    }
     // eel funny nested
     // eel wiht ${"fewfg\\"} // backslash before "
 
@@ -319,11 +411,21 @@ class NewParserTest extends TestCase
             ['a = ""', ['a' => '']],
             ['a = \'\'', ['a' => '']],
             ['a = "a\"b"', ['a' => 'a"b']],
-            ['a = "a\nb"', ['a' => 'a'. chr(10) . 'b']],
+            [<<<'Fusion'
+            a = "a line\nbreak"
+            Fusion, ['a' => 'a line'. chr(10) . 'break']],
             ['a = \'a"b\'', ['a' => 'a"b']],
             ['a = \'a"b\'', ['a' => 'a"b']],
             ['a = \'a\nb\'', ['a' => 'a\nb']],
-//            ['a = "a\b"', ['a' => 'a\b']],
+            [<<<'Fusion'
+            a = "a\\b"
+            Fusion, ['a' => 'a\\b']],
+            [<<<'Fusion'
+            a = 'a\\b'
+            Fusion, ['a' => 'a\\b']],
+            [<<<'Fusion'
+            a = 'a\b'
+            Fusion, ['a' => 'a\\b']],
         ];
     }
 
@@ -341,9 +443,24 @@ class NewParserTest extends TestCase
         ];
     }
 
+
+    /**
+     * @test
+     * @dataProvider unexpectedBlocksWork
+     */
+    public function evaluateItJustWillParseWithOutError($fusion): void
+    {
+        $parser = new Parser;
+        $parser->parse($fusion);
+        self::assertTrue(true);
+    }
+
+
+
     /**
      * @test
      * @dataProvider commentsTest
+     * @dataProvider eelValueAssign
      * @dataProvider simpleValueAssign
      * @dataProvider unexpectedCopyAssigment
      * @dataProvider unexpectedObjectPaths
@@ -355,11 +472,14 @@ class NewParserTest extends TestCase
      */
     public function evaluateTests($fusion, $expectedAst): void
     {
-        self::assertFusionAst($fusion, $expectedAst);
+        $parser = new Parser;
+        $parsedFusionAst = $parser->parse($fusion);
+        self::assertEquals($expectedAst, $parsedFusionAst);
     }
 
     /**
      * @test
+     * @dataProvider commentsExceptionTest
      * @dataProvider throwsTest
      */
     public function evaluateThrowing($fusion): void
@@ -369,13 +489,4 @@ class NewParserTest extends TestCase
         $parser = new Parser;
         $parser->parse($fusion);
     }
-
-    static protected function assertFusionAst($fusion, $expectedAst)
-    {
-        $parser = new Parser;
-        $parsedFusionAst = $parser->parse($fusion);
-
-        self::assertEquals($expectedAst, $parsedFusionAst);
-    }
-
 }
