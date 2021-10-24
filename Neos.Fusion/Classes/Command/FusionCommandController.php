@@ -6,12 +6,32 @@ use Neos\Flow\Cli\CommandController;
 use Neos\Fusion\Core\Parser;
 use Neos\Fusion\Core\ParserOld;
 use Neos\Fusion\Annotations\LexerMode;
-
+use Neos\Fusion\Core\Token;
 
 
 class FusionCommandController extends CommandController
 {
 
+    public function tokenCommand()
+    {
+        \Neos\Flow\var_dump(Token::typeToString(55555));
+    }
+
+    public function lolCommand()
+    {
+        $a = <<<'TAG'
+a\\\nfw\ce\"f
+TAG;
+        $a = str_replace(['\\\\', '\\\'', '\\"', '\\n'],['\\', '\'', '"', "\n"],$a);
+
+        $b = "a\\\nfw\ce\"f";
+
+        \Neos\Flow\var_dump($a);
+        \Neos\Flow\var_dump($b);
+        \Neos\Flow\var_dump($a === $b);
+
+
+    }
 
     public function showCommand()
     {
@@ -77,10 +97,15 @@ class FusionCommandController extends CommandController
 
 
 //        $input = 'a = \'fewfw\\\\\'';
+# include: fwefew/**/*.f.wefwe
 
         $input = <<<'Lol'
 
-include: fwefew/**/*.f.wefwe
+
+a {
+
+b {
+fwe.fewf.fewfwf = "wef" }}
 
 Lol;
 
@@ -88,7 +113,7 @@ Lol;
 
 //        $input = "       \n                 a=1331  \n";
 
-        $output = $parser->parse($input);
+        $output = $parser->parse($input, __FILE__);
 
 //         var_dump($output["a"]);
         $this->outputLine(json_encode($output, JSON_PRETTY_PRINT));

@@ -267,6 +267,13 @@ class NewParserTest extends TestCase
         ];
     }
 
+    /**
+     * fwfefew.include: = "fwefw" // works old fails new
+     * 123include:45 = "fwefw" // works old fails new
+     * include: afile with whitespace.fusion // works old fails new
+     * a = include:Object // works old fails new
+     */
+
     public function unexpectedCopyAssigment()
     {
         return [
@@ -318,6 +325,9 @@ class NewParserTest extends TestCase
             ['something: = ""', ['something:' => '']],
             ['-_-:so-:m33_24et---hing00: = ""', ['-_-:so-:m33_24et---hing00:' => '']],
             ['"a.b" = ""', ['a.b' => '']],
+            ['"a.b\\\\" = ""', ['a.b\\' => '']],
+            ['"a.b\\c" = ""', ['a.bc' => '']],
+            ['"a.b\\"c" = ""', ['a.b"c' => '']],
             ['\'a.b\' = ""', ['a.b' => '']],
         ];
     }
@@ -416,16 +426,16 @@ class NewParserTest extends TestCase
             Fusion, ['a' => 'a line'. chr(10) . 'break']],
             ['a = \'a"b\'', ['a' => 'a"b']],
             ['a = \'a"b\'', ['a' => 'a"b']],
-            ['a = \'a\nb\'', ['a' => 'a\nb']],
+            ['a = \'a\nb\'', ['a' => 'anb']],
             [<<<'Fusion'
             a = "a\\b"
             Fusion, ['a' => 'a\\b']],
             [<<<'Fusion'
-            a = 'a\\b'
-            Fusion, ['a' => 'a\\b']],
+            a = 'a\\v'
+            Fusion, ['a' => 'a\\v']],
             [<<<'Fusion'
-            a = 'a\b'
-            Fusion, ['a' => 'a\\b']],
+            a = 'a\v'
+            Fusion, ['a' => 'av']],
         ];
     }
 
@@ -440,6 +450,7 @@ class NewParserTest extends TestCase
             ['a = 3Vendor:Name', ['a' => $obj('3Vendor:Name')]],
             ['a = V3ndor:Name', ['a' => $obj('V3ndor:Name')]],
             ['a = TRUE.Vendor:Object', ['a' => $obj('TRUE.Vendor:Object')]],
+            ['a = include:Object', ['a' => $obj('include:Object')]],
         ];
     }
 

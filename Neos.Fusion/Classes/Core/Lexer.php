@@ -2,6 +2,8 @@
 
 namespace Neos\Fusion\Core;
 
+use Psalm\Type\Atomic\TObject;
+
 class Lexer
 {
     const PATTERN_EEL_EXPRESSION = <<<'REGEX'
@@ -34,8 +36,8 @@ class Lexer
     {
         return [
             // Comments
-            ['/^\\/\\/.*/', '//COMMENT'],
-            ['/^#.*/', '#COMMENT'],
+            ['/^\\/\\/.*/', Token::SLASH_COMMENT],
+            ['/^#.*/', Token::HASH_COMMENT],
 //            ['/^\/\\*[\\s\\S]*?\\*\//', '/*COMMENT*/'],
 //            [<<<'REGEX'
 //            /^
@@ -51,55 +53,56 @@ class Lexer
 
             [<<<'REGEX'
             /^\/\*[^\*]*(?:\*[^\/][^\*]*)*\*\//
-            REGEX, '/*COMMENT*/'],
+            REGEX, Token::MULTILINE_COMMENT],
 
-            ['/^[\n\r]+/', 'NEWLINE'],
-            ['/^[ \t]+/', 'SPACE'],
+            ['/^[\n\r]+/', Token::NEWLINE],
+            ['/^[ \t]+/', Token::SPACE],
 
             // Keywords
-            ['/^(true|TRUE)\b/', 'TRUE'],
-            ['/^(false|FALSE)\b/', 'FALSE'],
-            ['/^(null|NULL)\b/', 'NULL'],
-            ['/^delete\\s*:\\s+/', 'DELETE'],
-            ['/^extends\\s*:\\s+/', 'EXTENDS'],
-            ['/^prototype\\s*:\\s+/', 'PROTOTYPE'],
-            ['/^include\\s*:/', 'INCLUDE'],
-            ['/^namespace\\s*:/', 'NAMESPACE'],
-            ['/^prototype\\s*\(/', 'PROTOTYPE_START'],
+            ['/^(true|TRUE)\b/', Token::TRUE],
+            ['/^(false|FALSE)\b/', Token::FALSE],
+            ['/^(null|NULL)\b/', Token::NULL],
+            ['/^delete\\s*:\\s+/', Token::DELETE],
+            ['/^extends\\s*:\\s+/', Token::EXTENDS],
+            ['/^prototype\\s*:\\s+/', Token::PROTOTYPE],
+            ['/^include\\s*:/', Token::INCLUDE],
+            ['/^namespace\\s*:/', Token::NAMESPACE],
+            ['/^prototype\\s*\(/', Token::PROTOTYPE_START],
 
             // Symbols
-            ['/^;/', ';'],
-            ['/^{/', '{'],
-            ['/^}/', '}'],
-            ['/^\./', '.'],
-            ['/^:/', ':'],
-            ['/^\)/', ')'],
-            ['/^-/', '-'],
-            ['/^\\*/', '*'],
-            ['/^\//', '/'],
-            ['/^_/', '_'],
-            ['/^@/', '@'],
+            ['/^;/', Token::SEMICOLON],
+            ['/^\./', Token::DOT],
+            ['/^:/', Token::COLON],
+            ['/^\)/', Token::RPAREN],
+            ['/^{/', Token::LBRACE],
+            ['/^}/', Token::RBRACE],
+            ['/^-/', Token::MINUS],
+            ['/^\\*/', Token::STAR],
+            ['/^\//', Token::SLASH],
+            ['/^_/', Token::UNDERSCORE],
+            ['/^@/', Token::AT],
 
-            ['/^=/', '='],
-            ['/^</', '<'],
-            ['/^>/', '>'],
+            ['/^=/', Token::ASSIGNMENT],
+            ['/^</', Token::COPY],
+            ['/^>/', Token::UNSET],
 
-            ['/^[0-9]+/', 'DIGIT'],
-            ['/^[a-zA-Z]+/', 'LETTER'],
+            ['/^[0-9]+/', Token::DIGIT],
+            ['/^[a-zA-Z]+/', Token::LETTER],
 
             // Strings
             [<<<'REGEX'
             /^"[^"\\]*(?:\\.[^"\\]*)*"/
-            REGEX, 'STRING'],
+            REGEX, Token::STRING],
 
             [<<<'REGEX'
             /^'[^'\\]*(?:\\.[^'\\]*)*'/
-            REGEX, 'CHAR'],
+            REGEX, Token::CHAR],
 
             // Expressions
-            [self::PATTERN_EEL_EXPRESSION, 'EEL_EXPRESSION'],
+            [self::PATTERN_EEL_EXPRESSION, Token::EEL_EXPRESSION],
             // add content to this match?
-            ['/^\${/', 'UNCLOSED_EEL_EXPRESSION'],
+            // unclosed multiline strings ...
+//            ['/^\${/', 'UNCLOSED_EEL_EXPRESSION'],
         ];
     }
 
@@ -114,7 +117,7 @@ class Lexer
             $tokenList[] = $this->getNextToken();
         }
 
-        $tokenList[] = $this->toToken('EOF');
+        $tokenList[] = $this->toToken(Token::EOF);
 
         return new TokenStream($tokenList);
     }
@@ -132,7 +135,7 @@ class Lexer
     /**
      * Obtains next token.
      */
-    protected function getNextToken(): ?array
+    protected function getNextToken(): ?Token
     {
         // hasMoreTokens
         $string = substr($this->string, $this->cursor);
@@ -155,21 +158,18 @@ class Lexer
         throw new \Exception('this doesnt exists ... unexpected token while lexing: ' . $string[0]);
     }
 
-    public function toToken($tokenName, $tokenValue = ''): array
+    public function toToken(int $tokenType, $tokenValue = ''): Token
     {
         if (FLOW_APPLICATION_CONTEXT === 'Development') {
             print_r([
-                'type' => $tokenName,
+                'type' => $tokenType,
                 'value' => $tokenValue,
             ]);
         }
-        return [
-            'type' => $tokenName,
-            'value' => $tokenValue,
-        ];
+        return new Token($tokenType, $tokenValue, 0, 0, 0);
     }
 
-    protected function match(string $regexp, string $string)
+    protected function match(string $regexp, string $string): ?string
     {
         $isMatch = preg_match($regexp, $string, $matches);
         if ($isMatch === 0)

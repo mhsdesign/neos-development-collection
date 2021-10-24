@@ -9,21 +9,24 @@ class TokenStream implements \Iterator, \Countable
     /** @var int */
     private int $pointer;
 
+    /**
+     * @param array<Token> $tokens
+     */
     public function __construct(array $tokens)
     {
         $this->pointer = 0;
         $this->tokens = $tokens;
     }
 
-    public function getTokenAt(int $index): ?array
+    public function getTokenAt(int $index): ?Token
     {
         return $this->tokens[$index] ?? null;
     }
 
-    public function getNextNotIgnoredToken($offset, $excludeTokenTypes): ?array
+    public function getNextNotIgnoredToken($offset, $excludeTokenTypes): ?Token
     {
         for ($i = $offset; $i < count($this->tokens); $i++) {
-            if (in_array($this->tokens[$i]['type'], $excludeTokenTypes) === false) {
+            if (in_array($this->tokens[$i]->getType(), $excludeTokenTypes) === false) {
                 return $this->tokens[$i];
             }
         }
@@ -35,7 +38,7 @@ class TokenStream implements \Iterator, \Countable
         return $this->pointer;
     }
 
-    public function current(): array
+    public function current(): Token
     {
         return $this->tokens[$this->pointer];
     }

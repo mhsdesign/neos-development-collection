@@ -721,7 +721,10 @@ class ParserOld implements ParserInterface
                 '__objectType' => null
             ];
         } elseif (preg_match(self::SPLIT_PATTERN_VALUELITERAL, $unparsedValue, $matches) === 1) {
-            $processedValue = stripslashes(isset($matches[2]) ? $matches[2] : $matches[1]);
+            \Neos\Flow\var_dump(stripslashes($matches[1]));
+
+            $processedValue = stripslashes($matches[2] ?? $matches[1]);
+
         } elseif (preg_match(self::SPLIT_PATTERN_VALUEMULTILINELITERAL, $unparsedValue, $matches) === 1) {
             $processedValue = stripslashes(isset($matches['SingleQuoteValue']) ? $matches['SingleQuoteValue'] : $matches['DoubleQuoteValue']);
             $closingQuoteChar = isset($matches['SingleQuoteChar']) ? $matches['SingleQuoteChar'] : $matches['DoubleQuoteChar'];
