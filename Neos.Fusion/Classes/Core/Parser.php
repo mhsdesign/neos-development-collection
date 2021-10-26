@@ -23,8 +23,10 @@ use Neos\Fusion\Exception;
  */
 class Parser extends AbstractParser implements ParserInterface
 {
-    const WHITESPACE = [Token::SPACE, Token::NEWLINE];
-    const COMMENTS = [Token::SLASH_COMMENT, Token::HASH_COMMENT, Token::MULTILINE_COMMENT];
+    protected const WHITESPACE = [Token::SPACE, Token::NEWLINE];
+    protected const COMMENTS = [Token::SLASH_COMMENT, Token::HASH_COMMENT, Token::MULTILINE_COMMENT];
+    protected const BIG_GAP = [...self::WHITESPACE, ...self::COMMENTS];
+    protected const SMALL_GAP = [Token::SPACE, ...self::COMMENTS];
 
     /**
      * @Flow\Inject
@@ -114,37 +116,37 @@ class Parser extends AbstractParser implements ParserInterface
 
     /**
      * BigGap
-     *  : SPACE
-     *  | NEWLINE
-     *  | //COMMENT
-     *  | #COMMENT
-     *  | /*COMMENT*\/
+     *  : Token::SPACE
+     *  | Token::NEWLINE
+     *  | Token::SLASH_COMMENT
+     *  | Token::HASH_COMMENT
+     *  | Token::MULTILINE_COMMENT
      *  ;
      */
     protected function parseBigGap(): void
     {
-        while (in_array($this->peek()->getType(), [...self::WHITESPACE, ...self::COMMENTS])) {
+        while (in_array($this->peek()->getType(), self::BIG_GAP)) {
             $this->consume();
         }
     }
 
     /**
      * SmallGap
-     *  : SPACE
-     *  | //COMMENT
-     *  | #COMMENT
-     *  | /*COMMENT*\/
+     *  : Token::SPACE
+     *  | Token::SLASH_COMMENT
+     *  | Token::HASH_COMMENT
+     *  | Token::MULTILINE_COMMENT
      *  ;
      */
     protected function parseSmallGap(): void
     {
-        while (in_array($this->peek()->getType(), [Token::SPACE, ...self::COMMENTS])) {
+        while (in_array($this->peek()->getType(), self::SMALL_GAP)) {
             $this->consume();
         }
     }
 
     /**
-     * Program
+     * Fusion
      *  : StatementList
      *  ;
      */
@@ -176,7 +178,10 @@ class Parser extends AbstractParser implements ParserInterface
     /**
      * Statement
      *  : EmptyStatement
-     *  | ClassDeclaration
+     *  | NamespaceDeclaration
+     *  | IncludeStatement
+     *  | PrototypeDeclaration
+     *  | DeleteStatement
      *  | DeleteStatement
      *  | ObjectDefinition
      *  ;
@@ -186,12 +191,12 @@ class Parser extends AbstractParser implements ParserInterface
     {
         $this->parseBigGap();
         switch ($this->peek()->getType()) {
+            case Token::EOF:
+                return;
+
             case Token::NEWLINE:
             case Token::SEMICOLON:
                 $this->consume();
-                return;
-
-            case Token::EOF:
                 return;
 
             case Token::NAMESPACE:
@@ -203,18 +208,18 @@ class Parser extends AbstractParser implements ParserInterface
                 return;
 
             case Token::PROTOTYPE:
-               $this->parsePrototypeDeclaration();
+                $this->parsePrototypeDeclaration();
                 return;
 
-            case Token::DELETE:
-               $this->parseDeleteStatement();
+            case Token::UNSET_KEYWORD:
+                $this->parseUnsetStatement();
                 return;
 
             case Token::DIGIT:
             case Token::LETTER:
-            case Token::TRUE:
-            case Token::FALSE:
-            case Token::NULL:
+            case Token::TRUE_VALUE:
+            case Token::FALSE_VALUE:
+            case Token::NULL_VALUE:
             case Token::MINUS:
             case Token::UNDERSCORE:
             case Token::COLON:
@@ -269,18 +274,18 @@ class Parser extends AbstractParser implements ParserInterface
 
     protected function isStartOfBlockStatement(): bool
     {
-        return $this->peekIgnore(self::WHITESPACE)->getType() === Token::LBRACE;
+        return $this->peekIgnore(self::BIG_GAP)->getType() === Token::LBRACE;
     }
 
     /**
-     * DeleteStatement
-     *  : DELETE AbsoluteObjectPath
+     * UnsetStatement
+     *  : Token::UNSET_KEYWORD AbsoluteObjectPath
      *  ;
      *
      */
-    protected function parseDeleteStatement()
+    protected function parseUnsetStatement()
     {
-        $this->expect(Token::DELETE);
+        $this->expect(Token::UNSET_KEYWORD);
         $currentPath = $this->parseObjectPathAssignment();
         $this->astBuilder->removeValueInObjectTree($currentPath);
     }
@@ -323,7 +328,7 @@ class Parser extends AbstractParser implements ParserInterface
      */
     protected function parseFusionObjectNamePart(): string
     {
-        $value = $this->lazyExpectTokens([Token::LETTER, Token::DIGIT, Token::DOT, Token::TRUE, Token::FALSE, Token::NULL]);
+        $value = $this->lazyExpectTokens([Token::LETTER, Token::DIGIT, Token::DOT, Token::TRUE_VALUE, Token::FALSE_VALUE, Token::NULL_VALUE]);
         if ($value === null) {
             throw new \Exception('Expected FusionObjectNamePart but got' . $this->peek());
         }
@@ -351,7 +356,7 @@ class Parser extends AbstractParser implements ParserInterface
     {
         // TODO: include stuff/**/*.fusion -> will be lexed to 'LETTER /*COMMENT*/ * . LETTER' this seems off.
         // would also apply for a case with include #file.fusion, which will be a #COMMENT
-        $value = $this->lazyExpectTokens([Token::DIGIT, Token::LETTER, Token::COLON, Token::STAR, Token::MINUS, Token::UNDERSCORE, Token::SLASH, Token::DOT, Token::TRUE, Token::FALSE, Token::NULL, Token::MULTILINE_COMMENT, Token::HASH_COMMENT]);
+        $value = $this->lazyExpectTokens([Token::DIGIT, Token::LETTER, Token::COLON, Token::STAR, Token::MINUS, Token::UNDERSCORE, Token::SLASH, Token::DOT, Token::TRUE_VALUE, Token::FALSE_VALUE, Token::NULL_VALUE, Token::MULTILINE_COMMENT, Token::HASH_COMMENT]);
         if ($value === null) {
             throw new \Exception('Expected FilePattern but got' . $this->peek());
         }
@@ -376,7 +381,7 @@ class Parser extends AbstractParser implements ParserInterface
             $namespaceAlias = $this->parseFusionObjectNamePart();
 
             $this->parseSmallGap();
-            $this->expect('=');
+            $this->expect(Token::ASSIGNMENT);
 
             $this->parseSmallGap();
             $namespacePackageKey = $this->parseFusionObjectNamePart();
@@ -399,7 +404,7 @@ class Parser extends AbstractParser implements ParserInterface
      */
     protected function parseIncludeStatement()
     {
-        $this->expect('INCLUDE');
+        $this->expect(Token::INCLUDE);
 
         $this->parseSmallGap();
 
@@ -478,7 +483,7 @@ class Parser extends AbstractParser implements ParserInterface
 
         $accepted = [];
         $save = function ($tokenType) use (&$accepted) {
-            $accepted[] = $tokenType;
+            $accepted[] = Token::typeToString($tokenType);
             return $tokenType;
         };
 
@@ -491,7 +496,7 @@ class Parser extends AbstractParser implements ParserInterface
                 $this->consume();
                 return;
         }
-        throw new \Exception('Expected in ' . __FUNCTION__ .  ' one of ' . $accepted . ' but got: ' . $this->peek() . ' on line: $this->peek()->lineInfo()');
+        throw new \Exception('Expected in ' . __FUNCTION__ .  ' one of ' . json_encode($accepted) . ' but got: ' . $this->peek() . ' on line: $this->peek()->lineInfo()');
     }
 
     /**
@@ -506,7 +511,7 @@ class Parser extends AbstractParser implements ParserInterface
         $this->expect(Token::LBRACE);
         array_push($this->currentObjectPathStack, $path);
 
-        $isNotEndOfBlockStatement = fn():bool => $this->peekIgnore(self::WHITESPACE)->getType() !== Token::RBRACE;
+        $isNotEndOfBlockStatement = fn():bool => $this->peekIgnore(self::BIG_GAP)->getType() !== Token::RBRACE;
         if ($isNotEndOfBlockStatement()) {
             $this->parseStatementList($isNotEndOfBlockStatement);
         }
@@ -563,7 +568,7 @@ class Parser extends AbstractParser implements ParserInterface
      */
     protected function parsePathIdentifier(): string
     {
-        $value = $this->lazyExpectTokens([Token::DIGIT, Token::COLON, Token::MINUS, Token::UNDERSCORE, Token::LETTER, Token::TRUE, Token::FALSE, Token::NULL]);
+        $value = $this->lazyExpectTokens([Token::DIGIT, Token::COLON, Token::MINUS, Token::UNDERSCORE, Token::LETTER, Token::TRUE_VALUE, Token::FALSE_VALUE, Token::NULL_VALUE]);
         if ($value === null) {
             throw new \Exception('PathIdentifier but got' . $this->peek());
         }
@@ -588,9 +593,9 @@ class Parser extends AbstractParser implements ParserInterface
         switch ($token->getType()) {
             case Token::DIGIT:
             case Token::LETTER:
-            case Token::TRUE:
-            case Token::FALSE:
-            case Token::NULL:
+            case Token::TRUE_VALUE:
+            case Token::FALSE_VALUE:
+            case Token::NULL_VALUE:
             case Token::UNDERSCORE:
             case Token::MINUS:
             case Token::COLON:
@@ -727,9 +732,9 @@ class Parser extends AbstractParser implements ParserInterface
             case Token::LETTER:
                 return $this->parseFusionObject();
 
-            case Token::FALSE:
-            case Token::NULL:
-            case Token::TRUE:
+            case Token::FALSE_VALUE:
+            case Token::NULL_VALUE:
+            case Token::TRUE_VALUE:
                 // it could be a fusion object with the name TRUE:Fusion
                 // check if the next token is anything that would lead to that its an object:
                 switch ($this->peek(1)->getType()){
@@ -802,13 +807,13 @@ class Parser extends AbstractParser implements ParserInterface
     protected function parseLiteral()
     {
         switch ($this->peek()->getType()) {
-            case Token::FALSE:
+            case Token::FALSE_VALUE:
                 $this->consume();
                 return false;
-            case Token::NULL:
+            case Token::NULL_VALUE:
                 $this->consume();
                 return null;
-            case Token::TRUE:
+            case Token::TRUE_VALUE:
                 $this->consume();
                 return true;
             case Token::DIGIT:

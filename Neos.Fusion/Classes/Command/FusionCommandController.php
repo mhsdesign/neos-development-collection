@@ -14,7 +14,7 @@ class FusionCommandController extends CommandController
 
     public function tokenCommand()
     {
-        \Neos\Flow\var_dump(Token::typeToString(55555));
+        \Neos\Flow\var_dump(Token::typeToString(Token::DOT));
     }
 
     public function lolCommand()
@@ -105,7 +105,7 @@ TAG;
 a {
 
 b {
-fwe.fewf.fewfwf = "wef" }}
+fwe.fewf.fewfwf = "wef"; }}
 
 Lol;
 

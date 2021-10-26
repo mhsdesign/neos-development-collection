@@ -99,7 +99,7 @@ abstract class AbstractParser
 
     /**
      * consumes tokens of specified types as long as any of them is present and return the concat string value.
-     * @param array $tokenTypes
+     * @param array<int> $tokenTypes
      * @return string|null
      * @throws Fusion\Exception
      */

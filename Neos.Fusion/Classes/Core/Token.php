@@ -31,10 +31,10 @@ class Token
     public const NEWLINE = 3;
     public const SPACE = 4;
 
-    public const TRUE = 5;
-    public const FALSE = 6;
-    public const NULL = 7;
-    public const DELETE = 8;
+    public const TRUE_VALUE = 5;
+    public const FALSE_VALUE = 6;
+    public const NULL_VALUE = 7;
+    public const UNSET_KEYWORD = 8;
     public const EXTENDS = 9;
     public const PROTOTYPE = 10;
     public const INCLUDE = 11;
@@ -116,6 +116,8 @@ class Token
         return $this->offset;
     }
 
+    protected static array $constants;
+
     /**
      * Returns the constant representation (internal) of a given type.
      *
@@ -125,8 +127,10 @@ class Token
      */
     public static function typeToString(int $type): string
     {
-        $constants = (new \ReflectionClass(self::class))->getConstants();
-        $stringRepresentation = array_search($type, $constants, true);
+        // TODO: ensure that all constants have unique values.
+        self::$constants ?? self::$constants = (new \ReflectionClass(self::class))->getConstants();
+
+        $stringRepresentation = array_search($type, self::$constants, true);
 
         if ($stringRepresentation === false) {
             throw new \LogicException(sprintf('Token of type "%s" does not exist.', $type));

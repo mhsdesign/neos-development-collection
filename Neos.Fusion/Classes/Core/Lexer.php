@@ -2,8 +2,6 @@
 
 namespace Neos\Fusion\Core;
 
-use Psalm\Type\Atomic\TObject;
-
 class Lexer
 {
     const PATTERN_EEL_EXPRESSION = <<<'REGEX'
@@ -59,11 +57,11 @@ class Lexer
             ['/^[ \t]+/', Token::SPACE],
 
             // Keywords
-            ['/^(true|TRUE)\b/', Token::TRUE],
-            ['/^(false|FALSE)\b/', Token::FALSE],
-            ['/^(null|NULL)\b/', Token::NULL],
-            ['/^delete\\s*:\\s+/', Token::DELETE],
-            ['/^extends\\s*:\\s+/', Token::EXTENDS],
+            ['/^(true|TRUE)\b/', Token::TRUE_VALUE],
+            ['/^(false|FALSE)\b/', Token::FALSE_VALUE],
+            ['/^(null|NULL)\b/', Token::NULL_VALUE],
+
+            ['/^unset\\s*:\\s+/', Token::UNSET_KEYWORD],
             ['/^prototype\\s*:\\s+/', Token::PROTOTYPE],
             ['/^include\\s*:/', Token::INCLUDE],
             ['/^namespace\\s*:/', Token::NAMESPACE],
@@ -85,6 +83,8 @@ class Lexer
             ['/^=/', Token::ASSIGNMENT],
             ['/^</', Token::COPY],
             ['/^>/', Token::UNSET],
+            ['/^extends\b/', Token::EXTENDS],
+
 
             ['/^[0-9]+/', Token::DIGIT],
             ['/^[a-zA-Z]+/', Token::LETTER],
@@ -162,7 +162,7 @@ class Lexer
     {
         if (FLOW_APPLICATION_CONTEXT === 'Development') {
             print_r([
-                'type' => $tokenType,
+                'type' => TOKEN::typeToString($tokenType),
                 'value' => $tokenValue,
             ]);
         }
