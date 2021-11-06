@@ -17,6 +17,7 @@ use Neos\Fusion;
 
 abstract class AbstractParser
 {
+
     /**
      * @var Lexer
      */
@@ -92,10 +93,10 @@ abstract class AbstractParser
     }
 
     /**
-     * OptionalBigGap
-     *  = ( NEWLINE / OptionalSmallGap )*
+     * __ "BigGap"
+     *  = ( Token::SPACE / Token::NEWLINE / Token::SLASH_COMMENT / Token::HASH_COMMENT / Token::MULTILINE_COMMENT )*
      */
-    protected function lazyBigGap(): void
+    protected function parseBigGap(): void
     {
         while (true) {
             switch (true) {
@@ -114,10 +115,10 @@ abstract class AbstractParser
     }
 
     /**
-     * OptionalSmallGap
-     *  = ( SPACE / SLASH_COMMENT / HASH_COMMENT / MULTILINE_COMMENT )*
+     * _ "SmallGap"
+     *  = ( Token::SPACE / Token::SLASH_COMMENT / Token::HASH_COMMENT / Token::MULTILINE_COMMENT )*
      */
-    protected function lazySmallGap(): void
+    protected function parseSmallGap(): void
     {
         while (true) {
             switch (true) {
@@ -135,23 +136,24 @@ abstract class AbstractParser
     }
 
     /**
-     * Get the current file, cursor and the code the lexer is using.
-     *
-     * @param int $offset
-     * @return array{string, string, int}
+     * @param string $message
+     * @param int $messageCode
+     * @throws ParserException
      */
-    protected function getParsingContext(int $offset = 0): array
+    protected function throwError(string $message, int $messageCode)
     {
-        $cursor = $this->lexer->getCursor();
-        $code = $this->lexer->getCode();
+        $parsingAction = ParserException::ONLY_MESSAGE;
+        throw new ParserException($this->contextPathAndFilename, $this->lexer->getCode(), $this->lexer->getCursor(), $this->lexer->isEof(), $parsingAction, $message, $messageCode);
+    }
 
-        if ($offset !== 0) {
-            $cursor += $offset;
-            if ($cursor < 0 || $cursor > strlen($code)) {
-                throw new \LogicException("Offset of '$offset' cannot be applied, as its out of range.", 1635790851);
-            }
-        }
-
-        return [$this->contextPathAndFilename, $code, $cursor];
+    /**
+     * @param int $parsingAction
+     * @param int $messageCode
+     * @param string|null $optMessage
+     * @throws ParserException
+     */
+    protected function throwSyntaxError(int $parsingAction, int $messageCode, string $optMessage = null)
+    {
+        throw new ParserException($this->contextPathAndFilename, $this->lexer->getCode(), $this->lexer->getCursor(), $this->lexer->isEof(), $parsingAction, $optMessage, $messageCode);
     }
 }

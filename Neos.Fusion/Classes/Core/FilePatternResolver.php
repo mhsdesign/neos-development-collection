@@ -6,7 +6,7 @@ use Neos\Fusion;
 
 /**
  * Resolve files after a pattern.
- * The returned files will not be checked for recursion and for readability.
+ * The returned files must still be checked for recursion and for readability.
  */
 class FilePatternResolver
 {
@@ -50,8 +50,7 @@ class FilePatternResolver
         $filePattern = trim($filePattern);
         if ($filePattern === '') {
             throw new \Exception("cannot resolve empty pattern: '$filePattern'");
-        }
-        if ($filePattern[0] === '/') {
+        } elseif ($filePattern[0] === '/') {
             throw new \Exception("cannot resolve absolute pattern: '$filePattern'");
         }
         if (self::patternIsStreamWrapperThrowOnInvalid($filePattern) === false) {
@@ -71,8 +70,9 @@ class FilePatternResolver
                 return true;
             }
             throw new \Exception("Unable to find the stream wrapper '$streamWrapper' while resolving the pattern: '$filePattern'");
+        } else {
+            return false;
         }
-        return false;
     }
 
     protected static function resolveRelativePath(string $filePattern, ?string $currentFilePath): string

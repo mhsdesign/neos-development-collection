@@ -10,6 +10,7 @@ use Neos\Utility\Arrays;
  */
 class AstBuilder
 {
+
     /**
      * Reserved parse tree keys for internal usage.
      *
@@ -17,25 +18,13 @@ class AstBuilder
      */
     public static $reservedParseTreeKeys = ['__meta', '__prototypes', '__stopInheritanceChain', '__prototypeObjectName', '__prototypeChain', '__value', '__objectType', '__eelExpression'];
 
+
     /**
      * The Fusion object tree
      * @var array
      */
-    protected $objectTree = [];
+    protected array $objectTree = [];
 
-    public static function toFusionMetaPath(string $metaName): array
-    {
-        if ($metaName === 'override') {
-            $metaName = 'context';
-        }
-        return ['__meta', $metaName];
-
-    }
-
-    public static function toFusionPrototypePath(string $prototypeName): array
-    {
-        return ['__prototypes', $prototypeName];
-    }
 
     public static function countPrototypePaths(...$paths): int
     {
@@ -90,20 +79,21 @@ class AstBuilder
 
     public function inheritPrototypeInObjectTree($targetPrototypeObjectPath, $sourcePrototypeObjectPath)
     {
-        if (count($targetPrototypeObjectPath) !== 2 || count($sourcePrototypeObjectPath) !== 2) {
-            // one of the path has not a lenght of 2: this means
-            // at least one path is nested (f.e. foo.prototype(Bar))
+        if (count($targetPrototypeObjectPath) === 2 && count($sourcePrototypeObjectPath) === 2) {
+            // the path has length 2: this means
+            // it must be of the form "prototype(Foo) < prototype(Bar)"
+            $targetPrototypeObjectPath[] = '__prototypeObjectName';
+            $this->setValueInObjectTree($targetPrototypeObjectPath, end($sourcePrototypeObjectPath));
+        } else {
+            // Both are prototype definitions, but at least one is nested (f.e. foo.prototype(Bar))
             // Currently, it is not supported to override the prototypical inheritance in
             // parts of the Fusion rendering tree.
             // Although this might work conceptually, it makes reasoning about the prototypical
             // inheritance tree a lot more complex; that's why we forbid it right away.
             throw new Fusion\Exception('Cannot inherit, when one of the sides is nested (e.g. foo.prototype(Bar)). Setting up prototype inheritance is only supported at the top level: prototype(Foo) < prototype(Bar)', 1358418019);
         }
-
-        // it must be of the form "prototype(Foo) < prototype(Bar)"
-        $targetPrototypeObjectPath[] = '__prototypeObjectName';
-        $this->setValueInObjectTree($targetPrototypeObjectPath, end($sourcePrototypeObjectPath));
     }
+
 
     /**
      * Assigns a value to a node or a property in the object tree, specified by the object path array.
@@ -141,19 +131,20 @@ class AstBuilder
             }
         } else {
             // we still need to traverse further down
-            if (isset($objectTree[$currentKey]) && is_array($objectTree[$currentKey]) === false) {
+            if (isset($objectTree[$currentKey]) && !is_array($objectTree[$currentKey])) {
                 // the element one-level-down is already defined, but it is NOT an array. So we need to convert the simple type to __value
                 $objectTree[$currentKey] = [
                     '__value' => $objectTree[$currentKey],
                     '__eelExpression' => null,
                     '__objectType' => null
                 ];
-            } elseif (isset($objectTree[$currentKey]) === false) {
+            } elseif (!isset($objectTree[$currentKey])) {
                 $objectTree[$currentKey] = [];
             }
 
             $this->setValueInObjectTree($objectPathArray, $value, $objectTree[$currentKey]);
         }
+
         return $objectTree;
     }
 
@@ -193,7 +184,7 @@ class AstBuilder
      */
     public function buildPrototypeHierarchy()
     {
-        if (isset($this->objectTree['__prototypes']) === false) {
+        if (!isset($this->objectTree['__prototypes'])) {
             return;
         }
 

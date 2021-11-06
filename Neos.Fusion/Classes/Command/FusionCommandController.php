@@ -5,6 +5,8 @@ use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Fusion\Core\Parser;
 use Neos\Fusion\Core\ParserOld;
+use Neos\Fusion\Annotations\LexerMode;
+use Neos\Fusion\Core\Token;
 use PHPUnit\Framework\TestCase;
 
 class FusionCommandController extends CommandController
@@ -81,13 +83,10 @@ class FusionCommandController extends CommandController
 //                    multiline wrap
 //                */
 
-        // prototype(a) < path.simple eof error when at end
         $input = <<<'Lol'
-include: **/*.fusion
-include: "resource://Neos.Fusion/Private/Fusion/Root.fusion"
 
-include: "resource://Neos.Neos/Private/Fusion/Root.fusion"
-include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+a {
+
 
 Lol;
 
@@ -97,37 +96,26 @@ Lol;
 
         $file = "/home/macode/dba/dba-codes_website-main/DistributionPackages/Resources/Private/Fusion/Root.fusion";
 
-
-
         $output = $parser->parse($input, $file);
 //
-        try {
-            $outputOld = $parserOld->parse($input, $file);
+//        try {
+//            $outputOld = $parserOld->parse($input, $file);
+//
+//        }catch (\Exception $e) {
+//
+//        }
 
-        }catch (\Exception $e) {
-
-        }
-
-        $this->outputLine(json_encode($output, JSON_PRETTY_PRINT));
+//        $this->outputLine(json_encode($output, JSON_PRETTY_PRINT));
 //        $this->outputLine(json_encode($outputOld, JSON_PRETTY_PRINT));
 
-        if (isset($outputOld)) {
-
-//            \Neos\Flow\var_dump($outputOld);
+//        if (isset($outputOld)) {
+//            TestCase::assertEquals($outputOld, $output);
+//        } else {
+//            $this->outputLine("<error>old parser dint eat it</error>");
+//            throw $e;
+//        }
 //
-//            \Neos\Flow\var_dump($outputOld);
-//            \Neos\Flow\var_dump($output);
-
-//            $a->testStuff($outputOld, $output);
-//
-
-            TestCase::assertEquals($outputOld, $output);
-        } else {
-            $this->outputLine("<error>old parser dint eat it</error>");
-            throw $e;
-        }
-
-        $this->outputLine('<success>This shit matched</success>');
+//        $this->outputLine('<success>This shit matched</success>');
 
 //         var_dump($output["a"]);
 //        $this->outputLine(json_encode($hi, JSON_PRETTY_PRINT));

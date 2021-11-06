@@ -1,6 +1,5 @@
 <?php
 namespace Neos\Fusion\Core;
-use Neos\Fusion;
 
 /*
  * This file is part of the Neos.Fusion package.
@@ -13,26 +12,27 @@ use Neos\Fusion;
  */
 
 /**
- * An exception thrown by the Fusion parser. It will generate a message if the MESSAGE context flag is provided and show the current line with ASCII art.
+ * An exception thrown by Fusion processors or generally in the Fusion context.
+ *
  */
-class ParserException extends Fusion\Exception
+class ParserException extends \Exception
 {
-    public const MESSAGE_UNEXPECTED_CHAR = 1;
-    public const MESSAGE_FROM_INPUT = 2;
 
-    public const MESSAGE_PARSING_PATH_OR_OPERATOR = 4;
-    public const MESSAGE_PARSING_PATH_SEGMENT = 8;
-    public const MESSAGE_PARSING_VALUE_ASSIGNMENT = 16;
-    public const MESSAGE_PARSING_DSL_EXPRESSION = 32;
-    public const MESSAGE_PARSING_END_OF_STATEMENT = 64;
-    public const MESSAGE_PARSING_STATEMENT = 128;
-    public const HIDE_COLUMN = 256;
+    public const UNEXPECTED_TOKEN_WITH_MESSAGE = -1;
+    public const ONLY_MESSAGE = 0;
+
+    public const PARSING_PATH_OR_OPERATOR = 1;
+    public const PARSING_PATH_SEGMENT = 2;
+    public const PARSING_VALUE_ASSIGNMENT = 3;
+    public const PARSING_DSL_EXPRESSION = 4;
+    public const PARSING_END_OF_STATEMENT = 5;
+    public const PARSING_STATEMENT = 6;
 
     private $fileName;
     private $lineNumber;
     private $columnNumber;
     private $currentLine;
-    private $bitMaskOptions;
+    private $parsingAction;
     private $isEof;
     private $optMessage;
     /**
@@ -47,82 +47,31 @@ class ParserException extends Fusion\Exception
      * @var string
      */
     private $nextChar;
-
-    /**
-     * @var string
-     */
-    private $nextCharPrint;
-
     /**
      * @var string
      */
     private $lastChar;
 
-    public function __construct(int $bitMaskOptions, array $currentParsingContext, int $messageCode, $input = null, \Throwable $previous = null)
-    {
-        list($fileName, $code, $cursor) = $currentParsingContext;
 
+    /**
+     * feature: allow accept or expect to accept string like "." and "-" for better error messages.
+     */
+
+    /**
+     * got will be a fake token till the next line end
+     * on error no token is allowed to be in cache
+     */
+    public function __construct($fileName, $code, $cursor, $isEof, $parsingAction, $optMessage, $optMessageCode)
+    {
         $this->fileName = $fileName ?? '<input>';
 
-        $this->bitMaskOptions = $bitMaskOptions;
-        $this->isEof = strlen($code) === $cursor;
-        $this->optMessage = $input;
+        $this->parsingAction = $parsingAction;
+        $this->isEof = $isEof;
+        $this->optMessage = $optMessage;
 
-        $this->initializeCurrentCodePositionInformation($code, $cursor);
+        $this->initializeCurrentCodeInformation($code, $cursor);
 
-        $linePreview = $this->renderErrorLinePreview();
-        $message = $this->getGeneratedMessage();
-
-        $messageAndLinePreview = $linePreview . "\n" . $message;
-
-        parent::__construct($messageAndLinePreview, $messageCode, $previous);
-    }
-
-    public function getGeneratedMessage(): string
-    {
-        return $this->getMessageByBitMaskOption();
-    }
-
-    protected function getMessageByBitMaskOption(): string
-    {
-        $m = [];
-        if ($this->bitMaskOptions & self::MESSAGE_FROM_INPUT) {
-            $m[] = $this->optMessage;
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_UNEXPECTED_CHAR) {
-            $m[] =  "Unexpected $this->nextCharPrint";
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_PATH_OR_OPERATOR) {
-            $m[] =  $this->messageParsingPathOrOperator();
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_PATH_SEGMENT) {
-            $m[] =  $this->messageParsingPathSegment();
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_VALUE_ASSIGNMENT) {
-            $m[] =  $this->messageParsingValueAssignment();
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_DSL_EXPRESSION) {
-            $m[] =  "A dsl expression starting with '$this->lastPartOfLine' was not closed.";
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_END_OF_STATEMENT) {
-            $m[] =  $this->messageParsingEndOfStatement();
-        }
-        if ($this->bitMaskOptions & self::MESSAGE_PARSING_STATEMENT) {
-            $m[] =  $this->messageParsingStatement();
-        }
-        return join(': ', $m);
-    }
-
-    protected function messageParsingEndOfStatement(): string
-    {
-        switch ($this->nextChar) {
-            case '/':
-                if ($this->lastPartOfLine[1] ?? '' === '*') {
-                    return 'Unclosed comment.';
-                }
-                return 'Unexpected single /. You can start a comment with // or /* or #';
-        }
-        return "Expected the end of a statement but found '$this->lastPartOfLine'.";
+        parent::__construct($this->__toString(), $optMessageCode ?? 0);
     }
 
     protected function messageParsingPathOrOperator(): string
@@ -133,20 +82,18 @@ class ParserException extends Fusion\Exception
         if (preg_match('/.*include\s*$/', $this->firstPartOfLine) === 1) {
             return 'Did you meant to include a Fusion file? (include: "./FileName.fusion")';
         }
-        if ($this->lastChar === ' ' && $this->nextChar === '.') {
-            return "Nested paths, seperated by '.' cannot contain spaces.";
-        }
+
         if ($this->lastChar === ' ') {
             // it's an operator since there was space
-            return "Unknown operator starting with $this->nextCharPrint. (Or you have unwanted spaces in you object path)";
+            if ($this->nextChar === '.') {
+                return "Nested paths, seperated by '.' cannot contain spaces.";
+            }
+            return "Unknown operator starting with '$this->nextChar'. (Or you have unwanted spaces in you object path)";
         }
         if ($this->nextChar === '(') {
             return "A normal path segment cannot contain '('. Did you meant to declare a prototype: 'prototype()'?";
         }
-        if ($this->nextChar === "\n" || $this->isEof) {
-            return "Object path without operator or block - found: $this->nextCharPrint";
-        }
-        return "Unknown operator or path segment at $this->nextCharPrint. Paths can contain only alphanumeric and ':-' - otherwise quote them.";
+        return "Unknown operator or path segment at '$this->nextChar'. Paths can contain only alphanumeric and ':-' - otherwise quote them.";
     }
 
     protected function messageParsingPathSegment(): string
@@ -154,7 +101,7 @@ class ParserException extends Fusion\Exception
         if ($this->nextChar === '"' || $this->nextChar === '\'') {
             return "A quoted object path starting with $this->nextChar was not closed";
         }
-        return "Unexpected $this->nextCharPrint. Expected an object path like alphanumeric[:-], prototype(...), quoted paths, or meta path starting with @";
+        return "Unexpected '$this->nextChar'. Expected an object path like alphanumeric[:-], prototype(...), quoted paths, or meta path starting with @";
     }
 
     protected function messageParsingValueAssignment(): string
@@ -170,11 +117,11 @@ class ParserException extends Fusion\Exception
                 return 'Template literals without DSL identifier are not supported.';
             case '$':
                 if ($this->lastPartOfLine[1] ?? '' === '{') {
-                    return 'Unclosed eel expression.';
+                    return 'Unclosed eel expression';
                 }
                 return 'Did you meant to start an eel expression "${...}"?';
         }
-        return "Unexpected character in assignment starting with $this->nextCharPrint";
+        return "Unexpected character in assignment starting with '$this->nextChar'";
     }
 
     protected function messageParsingStatement(): string
@@ -184,7 +131,7 @@ class ParserException extends Fusion\Exception
                 if ($this->lastPartOfLine[1] ?? '' === '*') {
                     return 'Unclosed comment.';
                 }
-                return 'Unexpected single /. You can start a comment with // or /* or #';
+                return 'Unexpected single /';
             case '"':
             case '\'':
                 return 'Unclosed quoted path.';
@@ -193,70 +140,107 @@ class ParserException extends Fusion\Exception
             case '}':
                 return 'Unexpected block end out of context. Check the number of your curly braces.';
         }
-        return "Unexpected character in statement: $this->nextCharPrint. A valid object path is alphanumeric[:-], prototype(...), quoted, or a meta path starting with @";
+        return "Unexpected character in statement: '$this->nextChar'. A valid object path is alphanumeric[:-], prototype(...), quoted, or a meta path starting with @";
     }
 
-    protected function initializeCurrentCodePositionInformation(string $code, int $cursor): void
+    public function getMessageByAction(): string
     {
-        $codeLength = strlen($code);
-        $newLinesFound = 0;
-        $lastNewLineToCursor = '';
-        $cursorToNextNewLine = '';
+        switch ($this->parsingAction) {
+            case self::ONLY_MESSAGE:
+                return $this->optMessage;
+            case self::PARSING_PATH_OR_OPERATOR:
+                return $this->messageParsingPathOrOperator();
+            case self::PARSING_PATH_SEGMENT:
+                return $this->messageParsingPathSegment();
+             case self::PARSING_VALUE_ASSIGNMENT:
+                return $this->messageParsingValueAssignment();
+            case self::PARSING_DSL_EXPRESSION:
+                return "A dsl expression starting with '$this->lastPartOfLine' was not closed.";
+            case self::PARSING_END_OF_STATEMENT:
+                // TODO: Unclosed comment.
+                return "Expected the end of a statement but found '$this->lastPartOfLine'.";
+            case self::UNEXPECTED_TOKEN_WITH_MESSAGE:
+                return "Unexpected '$this->nextChar' - " . $this->optMessage;
+            case self::PARSING_STATEMENT:
+                return $this->messageParsingStatement();
+        }
+        return "Unexpected '$this->nextChar'";
+    }
 
-        // loop over the string char by char to determine the
-        // current line of the $cursor and the part in the line in front
-        // of the cursor and the remaining part of the line
-        for ($i = 0; $i < $codeLength; $i++) {
+    protected function initializeCurrentCodeInformation(string $code, int $cursor): void
+    {
+        $length = strlen($code);
+        $newLinesFound = 0;
+        $newLineToCursor = '';
+        $cursorToNewLine = '';
+
+        for ($i = 0; $i < $length; $i++) {
             $char = $code[$i];
 
             if ($i >= $cursor) {
+                // what about cursor *is* \n ?
                 if ($char === "\n") {
                     break;
                 }
-                $cursorToNextNewLine .= $char;
-            }
+                $cursorToNewLine .= $char;
 
-            if ($i < $cursor) {
-                $lastNewLineToCursor .= $char;
+            } else {
                 if ($char === "\n") {
                     ++$newLinesFound;
-                    $lastNewLineToCursor = '';
+                    $newLineToCursor = '';
+                } else {
+                    $newLineToCursor .= $char;
                 }
             }
         }
 
-        $this->lineNumber = $newLinesFound + 1;
-        $this->firstPartOfLine = $lastNewLineToCursor;
-        $this->lastPartOfLine = $cursorToNextNewLine;
-        $this->currentLine = $lastNewLineToCursor . $cursorToNextNewLine;
-
-        if (function_exists('mb_strlen')) {
-            $this->columnNumber = mb_strlen($lastNewLineToCursor);
-        } else {
-            $this->columnNumber = strlen($lastNewLineToCursor);
-        }
-
-        $this->initNextAndLastChar($cursorToNextNewLine, $lastNewLineToCursor);
-    }
-
-
-    protected function initNextAndLastChar(string $cursorToNewLine, string $newLineToCursor): void
-    {
-        $this->nextChar = mb_substr($cursorToNewLine, 0, 1);
-
-        $this->nextCharPrint = $this->isEof ? '<EOF>' : self::printable($this->nextChar);
-
-        $this->lastChar = mb_substr($newLineToCursor, -1);
-    }
-
-    public function renderErrorLinePreview()
-    {
-        // maybe a little inspired by ^^ https://github.com/parsica-php/parsica/blob/main/src/Internal/Fail.php#L63
-
-        $body = $this->currentLine;
+        $this->firstPartOfLine = $newLineToCursor;
+        $this->lastPartOfLine = $cursorToNewLine;
 
         if ($this->isEof) {
-            $body .= '<EOF>';
+            $this->nextChar = 'EOF';
+        } else {
+            if (function_exists('mb_substr')) {
+                $this->nextChar = mb_substr($cursorToNewLine, 0, 1);
+            } else {
+                $this->nextChar = substr($cursorToNewLine, 0, 1) ?: '';
+            }
+        }
+
+        if (function_exists('mb_substr')) {
+            $this->lastChar = mb_substr($newLineToCursor, -1);
+        } else {
+            $this->lastChar = substr($newLineToCursor,  -1) ?: '';
+        }
+
+        $this->lineNumber = $newLinesFound + 1;
+        if (function_exists('mb_strlen')) {
+            $this->columnNumber = mb_strlen($newLineToCursor);
+        } else {
+            $this->columnNumber = strlen($newLineToCursor);
+        }
+        $this->currentLine = $newLineToCursor . $cursorToNewLine;
+    }
+
+    public function __toString()
+    {
+
+        $line = $this->renderErrorLine();
+        $message = $this->getMessageByAction();
+
+        return $line . "\n" . $message;
+    }
+
+
+    public function renderErrorLine()
+    {
+        if ($this->isEof === false) {
+            $firstChar = $this->nextChar;
+            $unexpected = $firstChar;
+//            $unexpected = Ascii::printable($firstChar);
+            $body = $this->currentLine;
+        } else {
+            $unexpected = $body = '<EOF>';
         }
 
         $lineNumber = $this->lineNumber;
@@ -265,11 +249,7 @@ class ParserException extends Fusion\Exception
 
         // +1 to get the next char
         $columnNumber = $this->columnNumber + 1;
-
-        $position = $this->fileName . ':' . $lineNumber;
-        if (($this->bitMaskOptions & self::HIDE_COLUMN) === 0) {
-            $position .= ':' . $columnNumber;
-        }
+        $position = $this->fileName . ':' . $lineNumber . ':' . $columnNumber;
 
         $spaceToArrow = str_repeat('_', $this->columnNumber);
 
@@ -277,7 +257,7 @@ class ParserException extends Fusion\Exception
         $bodyLine = strlen($body) > 80 ? (substr($body, 0, 77) . "...") : $body;
 
         $arrowColumn = '';
-        if (($this->bitMaskOptions & self::HIDE_COLUMN) === 0) {
+        if ($this->parsingAction !== self::ONLY_MESSAGE) {
             $arrowColumn = "$spaceToArrow^— column $columnNumber";
         }
 
@@ -287,54 +267,5 @@ class ParserException extends Fusion\Exception
             {$lineNumber} | $bodyLine
             {$spaceIndent} | $arrowColumn
             MESSAGE;
-    }
-
-    public static function printable(string $char): string
-    {
-        if ($char === '') {
-            return "<new line>";
-        }
-
-        // https://github.com/parsica-php/parsica/blob/main/src/Internal/Ascii.php
-        switch (mb_ord($char)) {
-            case   0:
-                return "<null>";
-            case   9:
-                return "<horizontal tab>";
-            case  10:
-                return "<line feed>";
-            case  11:
-                return "<vertical tab>";
-            case  13:
-                return "<carriage return>";
-            case  25:
-                return "<end of medium>";
-            case  32:
-                return "<space>";
-            case  34:
-                return "<double quote>";
-            case  39:
-                return "<single quote>";
-            case  47:
-                return "<slash>";
-            case  92:
-                return "<backslash>";
-            case 130:
-                return "<single low-9 quotation mark>";
-            case 132:
-                return "<double low-9 quotation mark>";
-            case 145:
-                return "<left single quotation mark>";
-            case 146:
-                return "<right single quotation mark>";
-            case 147:
-                return "<left double quotation mark>";
-            case 148:
-                return "<right double quotation mark>";
-            case 160:
-                return "<non-breaking space>";
-            default:
-                return "'$char'";
-        }
     }
 }

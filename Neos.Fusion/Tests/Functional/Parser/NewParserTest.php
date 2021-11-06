@@ -1,12 +1,11 @@
 <?php
 
-namespace Neos\Fusion\Tests\Unit\Core\Parser;
+namespace Neos\Fusion\Tests\Functional\Parser;
 
 use Neos\Fusion\Core\Parser;
-use Neos\Fusion\Core\ParserException;
 use PHPUnit\Framework\TestCase;
 
-class ParserTest extends TestCase
+class NewParserTest extends TestCase
 {
 
     public function pathBlockTest()
@@ -67,6 +66,15 @@ class ParserTest extends TestCase
             ],
             [
                 <<<'Fusion'
+                a
+                {
+                    b = ""
+                }
+                Fusion,
+                ['a' => ['b' => ""]]
+            ],
+            [
+                <<<'Fusion'
                 a = ""
                 a {
                 }
@@ -110,11 +118,10 @@ class ParserTest extends TestCase
         ];
     }
 
+
     public function commentsTest()
     {
-        $obj = function (string $name):array {
-            return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
-        };
+        $obj = fn(string $name):array => ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
         return[
             [
                 <<<'Fusion'
@@ -143,6 +150,18 @@ class ParserTest extends TestCase
             ],
             [
                 <<<'Fusion'
+                a /*
+                    comment
+                */
+                // hello
+                {
+                    b = ""
+                }
+                Fusion,
+                ['a' => ['b' => ""]]
+            ],
+            [
+                <<<'Fusion'
                 a = "" /*
                     multiline after
                 */ // hello
@@ -161,17 +180,6 @@ class ParserTest extends TestCase
     public function throwsWrongComments()
     {
         return[
-            [
-                <<<'Fusion'
-                a /*
-                    comment
-                */
-                // hello
-                {
-                    b = ""
-                }
-                Fusion,
-            ],
             ['a = // hallo ich bin ein comment 454545'],
             [<<<'Fusion'
             a = "" /* multiline after assignment which is without newlines connected to new statement
@@ -188,10 +196,6 @@ class ParserTest extends TestCase
     public function prototypeDeclarationAndInheritance()
     {
         return [
-            [
-                'prototype(asf.Ds:1).123 = 123',
-                ['__prototypes' => ['asf.Ds:1' => ['123' => '123']]]
-            ],
             [
                 <<<'Fusion'
                 prototype(Neos.Foo:Bar2) {
@@ -247,9 +251,7 @@ class ParserTest extends TestCase
 
     public function namespaceDeclaration()
     {
-        $obj = function (string $name):array {
-            return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
-        };
+        $obj = fn(string $name):array => ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
         return [
             [
                 <<<'Fusion'
@@ -311,7 +313,7 @@ class ParserTest extends TestCase
             Fusion], // block out of context
             ['a { b = "" }'], // no end of line detected
             // will throw with old parser: An exception was thrown while Neos tried to render your page
-            // missing brace:
+            // missing brace
             [<<<'Fusion'
             a = Neos.Fusion:Value {
               value = Neos.Fusion:Join {
@@ -345,21 +347,16 @@ class ParserTest extends TestCase
             b {
             }
             Fusion],
-            [<<<'Fusion'
-            a
-            {
-                b = ""
-            }
-            Fusion],
-            [<<<'Fusion'
-            prototype(a)
-            {
-                b = ""
-            }
-            Fusion],
         ];
     }
 
+    /**
+     * TODO:
+     * fwfefew.include: = "fwefw" // works old fails new
+     * 123include:45 = "fwefw" // works old fails new
+     * include: afile with whitespace.fusion // works old fails new
+     * a = include:Object // works old fails new
+     */
 
     public function unexpectedCopyAssigment()
     {
@@ -414,14 +411,10 @@ class ParserTest extends TestCase
             ['a.include: = ""', ['a' => ['include:' => '']]],
             ['-_-:so-:m33_24et---hing00: = ""', ['-_-:so-:m33_24et---hing00:' => '']],
             ['"a.b" = ""', ['a.b' => '']],
-            ['"@context" = ""', ['@context' => '']],
             ['"a.b\\\\" = ""', ['a.b\\' => '']],
             ['"a.b\\c" = ""', ['a.bc' => '']],
             ['"a.b\\"c" = ""', ['a.b"c' => '']],
             ['\'a.b\' = ""', ['a.b' => '']],
-            [<<<'FUSION'
-            "quo\"tes.mix\'ed".bla.'he\\\'.llo\\' = 1
-            FUSION, ['quo"tes.mix\'ed' => ['bla' => ['he\\\'.llo\\' => 1]]]],
             [<<<'Fusion'
             "multiline
               does
@@ -430,18 +423,9 @@ class ParserTest extends TestCase
         ];
     }
 
-    public function metaObjectPaths()
-    {
-        return [
-            ['a.@abc = 1', ['a' => ['__meta' => ['abc' => 1]]]],
-            ['a.@override = 1', ['a' => ['__meta' => ['context' => 1]]]],
-        ];
-    }
-
     public function nestedObjectPaths()
     {
         return [
-            ['12f:o:o.ba:r.as.ba:z = 1', ['12f:o:o' => ['ba:r' => ['as' => ['ba:z' => 1]]]]],
             ['a.b.c = ""', ['a' => ['b' => ['c' => '']]]],
             ['0.60.hello = ""', [0 => [60 => ['hello' => '']]]],
             ['"a.b.c".132.hel-lo.what: = ""', ['a.b.c' => [132 => ['hel-lo' => ['what:' => '']]]]],
@@ -478,9 +462,7 @@ class ParserTest extends TestCase
     }
 
     public function eelValueAssign() {
-        $eel = function (string $exp):array {
-            return ['__eelExpression' => $exp, '__value' => null, '__objectType' => null];
-        };
+        $eel = fn(string $exp):array => ['__eelExpression' => $exp, '__value' => null, '__objectType' => null];
         yield [
             <<<'Fusion'
             a = ${}
@@ -564,9 +546,8 @@ class ParserTest extends TestCase
     }
 
     public function fusionObjectNameEdgeCases() {
-        $obj = function (string $name):array {
-            return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
-        };
+        $obj = fn(string $name):array => ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
+        // TODO allow '4Object.123 or only at least always one Literal?
         return [
             ['a = Foo.null.Bar', ['a' => $obj('Neos.Fusion:Foo.null.Bar')]],
             ['a = truefalse.101.Bar', ['a' => $obj('Neos.Fusion:truefalse.101.Bar')]],
@@ -580,12 +561,14 @@ class ParserTest extends TestCase
         ];
     }
 
-    public function invalidFusionObjectNamesParsesBecauseTheOldParserDidntComplain()
+    // each fusion object part cannot start with unmixed digit or true null false value before first dot or colon. - that was the plan
+    // all of these object names are valid in the current parser.
+    public function throwsFusionObjectWrongNames()
     {
         return [
             ['a = .Hello.Name'],
-            ['a = ....fewf..fwe.1415'],
-            ['a = 1354.154.453'],
+            ['a = ....fewf..fwe.1415'], // this is not an object
+            ['a = 1354.154.453'], // this is not an object nor a number
             ['a = Hello..Name'],
             ['a = ABC:123'],
             ['a = 123:123'],
@@ -601,77 +584,9 @@ class ParserTest extends TestCase
         ];
     }
 
-    public function fusionIncludeAndExpectedPattern()
-    {
-        yield 'pattern without space' => [
-            'include:pattern/*',
-            'pattern/*'
-        ];
-        yield 'quoted pattern' => [
-            'include: \'pattern\'',
-            'pattern'
-        ];
-        yield 'quoted pattern with special chars' => [
-            'include: "  pattern ;# /**/ üä"',
-            '  pattern ;# /**/ üä'
-        ];
-        yield 'pattern with spaces' => [
-            'include:    pattern   ',
-            'pattern'
-        ];
-        yield 'pattern with comment' => [
-            'include: pattern // hello this is a comment',
-            'pattern'
-        ];
-    }
-
-    public function invalidFusionIncludes()
-    {
-        yield 'pattern with direct comment' => [
-            'include: pattern/* hello this is (not) a comment */',
-        ];
-        yield 'unquoted pattern with spaces' => [
-            'include: fusion file with space.fusion',
-        ];
-        yield 'unquoted pattern with invalid char' => [
-            'include: folder/äüö.fusion',
-        ];
-    }
-
-    /**
-     * @dataProvider invalidFusionIncludes
-     */
-    public function testInvalidIncludesWithParsingExceptionEndOfStatementExpected($fusion)
-    {
-        self::expectException(ParserException::class);
-        self::expectExceptionCode(1635878683);
-
-        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
-        $parser
-            ->expects(self::once())
-            ->method('includeAndParseFilesByPattern');
-
-        $parser->parse($fusion);
-    }
-
-    /**
-     * @dataProvider fusionIncludeAndExpectedPattern
-     */
-    public function testIncludeAndParseFilesByPattern($fusion, $pattern)
-    {
-        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
-        $parser
-            ->expects(self::once())
-            ->method('includeAndParseFilesByPattern')
-            ->with($pattern);
-
-        $parser->parse($fusion);
-    }
-
     /**
      * @test
      * @dataProvider commentsTest
-     * @dataProvider metaObjectPaths
      * @dataProvider namespaceDeclaration
      * @dataProvider eelValueAssign
      * @dataProvider simpleValueAssign
@@ -705,7 +620,7 @@ class ParserTest extends TestCase
 
     /**
      * @test
-     * @dataProvider invalidFusionObjectNamesParsesBecauseTheOldParserDidntComplain
+     * @dataProvider throwsFusionObjectWrongNames
      * @dataProvider unexpectedBlocksWork
      */
     public function itParsesWithoutError($fusion): void

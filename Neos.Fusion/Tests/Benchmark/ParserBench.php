@@ -34,8 +34,7 @@ class ParserBench
     protected $bigFusionToBeParsed;
     protected $mediumFusionToBeParsed;
     protected $smallFusionToBeParsed;
-    protected $superSmallFusionToBeParsed;
-    protected $fusionFileContext = null;
+    protected $fusionFileContext;
 
 
     public function init()
@@ -70,22 +69,11 @@ class ParserBench
             `
         }
         Fusion;
-
-
-        $this->superSmallFusionToBeParsed = <<<'Fusion'
-        root = Neos.Fusion:Value {
-            eel = ${"stuff" + "stuff"}
-            value = afx`
-                <h1>Neos</h1>
-                <a>hi</a>
-            `
-        }
-        Fusion;
     }
 
 //    /**
 //     * @Iterations(10)
-//     * @Revs(10)
+//     * @Revs(25)
 //     */
 //    public function bench_parser_old_big_ast()
 //    {
@@ -94,7 +82,7 @@ class ParserBench
 //
 //    /**
 //     * @Iterations(10)
-//     * @Revs(10)
+//     * @Revs(25)
 //     */
 //    public function bench_parser_new_big_ast()
 //    {
@@ -103,7 +91,7 @@ class ParserBench
 
     /**
      * @Iterations(10)
-     * @Revs(20)
+     * @Revs(50)
      */
     public function bench_parser_old_medium_ast()
     {
@@ -112,7 +100,7 @@ class ParserBench
 
     /**
      * @Iterations(10)
-     * @Revs(20)
+     * @Revs(50)
      */
     public function bench_parser_new_medium_ast()
     {
@@ -122,7 +110,7 @@ class ParserBench
 
     /**
      * @Iterations(10)
-     * @Revs(500)
+     * @Revs(1000)
      */
     public function bench_parser_old_small_ast()
     {
@@ -131,29 +119,10 @@ class ParserBench
 
     /**
      * @Iterations(10)
-     * @Revs(500)
+     * @Revs(1000)
      */
     public function bench_parser_new_small_ast()
     {
         $this->newParser->parse($this->smallFusionToBeParsed, $this->fusionFileContext);
     }
-
-    /**
-     * @Iterations(10)
-     * @Revs(500)
-     */
-    public function bench_parser_old_super_small_ast()
-    {
-        $this->parserOld->parse($this->superSmallFusionToBeParsed, $this->fusionFileContext);
-    }
-
-    /**
-     * @Iterations(10)
-     * @Revs(500)
-     */
-    public function bench_parser_new_super_small_ast()
-    {
-        $this->newParser->parse($this->superSmallFusionToBeParsed, $this->fusionFileContext);
-    }
-
 }
