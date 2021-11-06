@@ -126,6 +126,11 @@ final class Lexer
     /**
      * @var int
      */
+    protected $codeLen = 0;
+
+    /**
+     * @var int
+     */
     protected $cursor = 0;
 
     /**
@@ -143,10 +148,10 @@ final class Lexer
         return $this->cursor;
     }
 
-    public function getLookahead(): ?Token
-    {
-        return $this->lookahead;
-    }
+//    public function getLookahead(): ?Token
+//    {
+//        return $this->lookahead;
+//    }
 
     /**
      * Initializes the code
@@ -155,16 +160,17 @@ final class Lexer
     {
         $code = str_replace(["\r\n", "\r"], "\n", $code);
         $this->code = $code;
+        $this->codeLen = strlen($code);
     }
 
     public function consumeLookahead(): Token
     {
-        if ($this->lookahead === null) {
-            throw new Fusion\Exception("cannot consume if no token was generated", 1635708717);
-        }
-        if ($this->lookahead->getType() === Token::EOF) {
-            throw new Fusion\Exception("cannot consume <EOF>", 1635708718);
-        }
+//        if ($this->lookahead === null) {
+//            throw new Fusion\Exception("cannot consume if no token was generated", 1635708717);
+//        }
+//        if ($this->lookahead->getType() === Token::EOF) {
+//            throw new Fusion\Exception("cannot consume <EOF>", 1635708718);
+//        }
         $token = $this->lookahead;
         $this->lookahead = null;
         return $token;
@@ -173,9 +179,10 @@ final class Lexer
     public function tryGenerateLookahead(int $tokenType): ?Token
     {
         if ($this->lookahead !== null) {
-            throw new Fusion\Exception("cannot generate token if one was generated", 1635708719);
+            return $this->lookahead;
+//            throw new Fusion\Exception("cannot generate token if one was generated", 1635708719);
         }
-        if ($this->isEof()){
+        if ($this->cursor === $this->codeLen){
             return $this->lookahead = new Token(Token::EOF, '');
         }
         if ($tokenType === Token::EOF) {
@@ -184,36 +191,34 @@ final class Lexer
 
         $regexForToken = self::TOKEN_REGEX[$tokenType];
 
-        $remaindingCode = substr($this->code, $this->cursor);
+        $remainingCode = substr($this->code, $this->cursor);
 
-        $match = self::matchRegex($regexForToken, $remaindingCode);
-
-        if ($match === null) {
+        if (\preg_match($regexForToken, $remainingCode, $matches) !== 1) {
             return null;
         }
 
-        $this->cursor += strlen($match);
+        $this->cursor += strlen($matches[0]);
 
-        return $this->lookahead = new Token($tokenType, $match);
+        return $this->lookahead = new Token($tokenType, $matches[0]);
     }
 
-    protected function isEof(): bool
-    {
-        return $this->cursor === strlen($this->code);
-    }
+//    protected function isEof(): bool
+//    {
+//        return $this->cursor === $this->codeLen;
+//    }
 
-    protected static function matchRegex(string $regexp, string $string): ?string
-    {
-        $isMatch = preg_match($regexp, $string, $matches);
-        if ($isMatch === 0) {
-            return null;
-        }
-        if ($isMatch === false) {
-            throw new Fusion\Exception("the regular expression: '$regexp' throws an error on this string: '$string'", 1635708720);
-        }
-        if (strlen($matches[0]) === 0) {
-            throw new Fusion\Exception("the regular expression: '$regexp' matches only a position marker on this string: '$string'", 1635708721);
-        }
-        return $matches[0];
-    }
+//    protected static function matchRegex(string $regexp, string $string): ?string
+//    {
+//        $isMatch = preg_match($regexp, $string, $matches);
+//        if ($isMatch === 0) {
+//            return null;
+//        }
+//        if ($isMatch === false) {
+//            throw new Fusion\Exception("the regular expression: '$regexp' throws an error on this string: '$string'", 1635708720);
+//        }
+//        if (strlen($matches[0]) === 0) {
+//            throw new Fusion\Exception("the regular expression: '$regexp' matches only a position marker on this string: '$string'", 1635708721);
+//        }
+//        return $matches[0];
+//    }
 }

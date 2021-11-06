@@ -45,13 +45,11 @@ abstract class AbstractParser
      */
     protected function accept(int $tokenType): bool
     {
-        if ($this->lexer->getLookahead() === null) {
-            $this->lexer->tryGenerateLookahead($tokenType);
-        }
-        if ($this->lexer->getLookahead() === null) {
+        $token = $this->lexer->tryGenerateLookahead($tokenType);
+        if ($token === null) {
             return false;
         }
-        return $this->lexer->getLookahead()->getType() === $tokenType;
+        return $token->getType() === $tokenType;
     }
 
     /**
@@ -65,11 +63,9 @@ abstract class AbstractParser
      */
     protected function expect(int $tokenType): Token
     {
-        if ($this->lexer->getLookahead() === null) {
-            $this->lexer->tryGenerateLookahead($tokenType);
-        }
+        $token = $this->lexer->tryGenerateLookahead($tokenType);
 
-        if ($this->lexer->getLookahead() !== null && $this->lexer->getLookahead()->getType() === $tokenType) {
+        if ($token !== null && $token->getType() === $tokenType) {
             return  $this->lexer->consumeLookahead();
         }
 
