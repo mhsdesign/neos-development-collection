@@ -9,57 +9,6 @@ use PHPUnit\Framework\TestCase;
 class ParserTest extends TestCase
 {
 
-    public function additionalNewFusionSyntaxProposalAndIdeas()
-    {
-        yield 'prototype definition keyword' => [
-            <<<'Fusion'
-            prototype: Vendor:MyObject {
-                value = 123
-            }
-            Fusion,
-            ['__prototypes' => ['Vendor:MyObject' => ['value' => 123]]]
-        ];
-        yield 'prototype extension keyword' => [
-            <<<'Fusion'
-            prototype: Vendor:MyObject extends Neos.Fusion:Value {
-                value = 123
-            }
-            Fusion,
-            ['__prototypes' => ['Vendor:MyObject' => ['__prototypeObjectName' => 'Neos.Fusion:Value', 'value' => 123, '__prototypeChain' => ['Neos.Fusion:Value']]]]
-        ];
-        yield 'path prototype extension keyword' => [
-            <<<'Fusion'
-            prototype(Vendor:MyObject) extends prototype(Neos.Fusion:Value) {
-                value = 123
-            }
-            Fusion,
-            ['__prototypes' => ['Vendor:MyObject' => ['__prototypeObjectName' => 'Neos.Fusion:Value', 'value' => 123,  '__prototypeChain' => ['Neos.Fusion:Value']]]]
-        ];
-        yield 'empty prototype definition' => [
-            <<<'Fusion'
-            prototype: Vendor:MyObject {
-            }
-            Fusion,
-            []
-        ];
-        yield 'unset keyword absolute path' => [
-            <<<'Fusion'
-            a = 'value'
-            unset: a
-            Fusion,
-            ['a' => ['__stopInheritanceChain' => true]]
-        ];
-        yield 'unset keyword relative path' => [
-            <<<'Fusion'
-            b {
-                a = 'value'
-                unset: .a
-            }
-            Fusion,
-            ['b' => ['a' => ['__stopInheritanceChain' => true]]]
-        ];
-    }
-
     public function pathBlockTest()
     {
         return [
@@ -129,7 +78,6 @@ class ParserTest extends TestCase
 
     public function unexpectedBlocksWork()
     {
-        // test of normal objects is already done with the fixtures
         return [
             [
                 <<<'Fusion'
@@ -242,7 +190,7 @@ class ParserTest extends TestCase
         return [
             [
                 'prototype(asf.Ds:1).123 = 123',
-                ['__prototypes' => ['asf.Ds:1' => ['123' => 123]]]
+                ['__prototypes' => ['asf.Ds:1' => ['123' => '123']]]
             ],
             [
                 <<<'Fusion'
@@ -289,8 +237,8 @@ class ParserTest extends TestCase
                 Fusion,
                 ['__prototypes' => ['Neos.Foo:Bar3' => [
                     '__prototypeObjectName' => 'Neos.Foo:Bar2',
-                    'foo' => '',
                     '__prototypeChain' => ['Neos.Foo:Bar2'],
+                    'foo' => ''
                 ]]]
             ],
         ];
@@ -632,7 +580,7 @@ class ParserTest extends TestCase
         ];
     }
 
-    public function weirdFusionObjectNamesParsesBecauseTheOldParserDidntComplain()
+    public function invalidFusionObjectNamesParsesBecauseTheOldParserDidntComplain()
     {
         return [
             ['a = .Hello.Name'],
@@ -653,11 +601,75 @@ class ParserTest extends TestCase
         ];
     }
 
+    public function fusionIncludeAndExpectedPattern()
+    {
+        yield 'pattern without space' => [
+            'include:pattern/*',
+            'pattern/*'
+        ];
+        yield 'quoted pattern' => [
+            'include: \'pattern\'',
+            'pattern'
+        ];
+        yield 'quoted pattern with special chars' => [
+            'include: "  pattern ;# /**/ üä"',
+            '  pattern ;# /**/ üä'
+        ];
+        yield 'pattern with spaces' => [
+            'include:    pattern   ',
+            'pattern'
+        ];
+        yield 'pattern with comment' => [
+            'include: pattern // hello this is a comment',
+            'pattern'
+        ];
+    }
 
+    public function invalidFusionIncludes()
+    {
+        yield 'pattern with direct comment' => [
+            'include: pattern/* hello this is (not) a comment */',
+        ];
+        yield 'unquoted pattern with spaces' => [
+            'include: fusion file with space.fusion',
+        ];
+        yield 'unquoted pattern with invalid char' => [
+            'include: folder/äüö.fusion',
+        ];
+    }
+
+    /**
+     * @dataProvider invalidFusionIncludes
+     */
+    public function testInvalidIncludesWithParsingExceptionEndOfStatementExpected($fusion)
+    {
+        self::expectException(ParserException::class);
+        self::expectExceptionCode(1635878683);
+
+        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
+        $parser
+            ->expects(self::once())
+            ->method('includeAndParseFilesByPattern');
+
+        $parser->parse($fusion);
+    }
+
+    /**
+     * @dataProvider fusionIncludeAndExpectedPattern
+     */
+    public function testIncludeAndParseFilesByPattern($fusion, $pattern)
+    {
+        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
+        $parser
+            ->expects(self::once())
+            ->method('includeAndParseFilesByPattern')
+            ->with($pattern);
+
+        $parser->parse($fusion);
+    }
 
     /**
      * @test
-     * @dataProvider additionalNewFusionSyntaxProposalAndIdeas
      * @dataProvider commentsTest
      * @dataProvider metaObjectPaths
      * @dataProvider namespaceDeclaration
@@ -675,7 +687,7 @@ class ParserTest extends TestCase
     {
         $parser = new Parser;
         $parsedFusionAst = $parser->parse($fusion);
-        self::assertSame($expectedAst, $parsedFusionAst);
+        self::assertEquals($expectedAst, $parsedFusionAst);
     }
 
     /**
@@ -693,7 +705,7 @@ class ParserTest extends TestCase
 
     /**
      * @test
-     * @dataProvider weirdFusionObjectNamesParsesBecauseTheOldParserDidntComplain
+     * @dataProvider invalidFusionObjectNamesParsesBecauseTheOldParserDidntComplain
      * @dataProvider unexpectedBlocksWork
      */
     public function itParsesWithoutError($fusion): void

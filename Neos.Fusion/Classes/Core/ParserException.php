@@ -58,13 +58,6 @@ class ParserException extends Fusion\Exception
      */
     private $lastChar;
 
-    /**
-     * @param int $bitMaskOptions
-     * @param array{?string, string, int} $currentParsingContext
-     * @param int $messageCode
-     * @param null $input
-     * @param \Throwable|null $previous
-     */
     public function __construct(int $bitMaskOptions, array $currentParsingContext, int $messageCode, $input = null, \Throwable $previous = null)
     {
         list($fileName, $code, $cursor) = $currentParsingContext;
@@ -207,13 +200,13 @@ class ParserException extends Fusion\Exception
     {
         $codeLength = strlen($code);
         $newLinesFound = 0;
-        $afterLastNewLineToCursor = '';
+        $lastNewLineToCursor = '';
         $cursorToNextNewLine = '';
 
         // loop over the string char by char to determine the
         // current line of the $cursor and the part in the line in front
         // of the cursor and the remaining part of the line
-        for ($i = 0; $i < $codeLength; ++$i) {
+        for ($i = 0; $i < $codeLength; $i++) {
             $char = $code[$i];
 
             if ($i >= $cursor) {
@@ -221,24 +214,29 @@ class ParserException extends Fusion\Exception
                     break;
                 }
                 $cursorToNextNewLine .= $char;
-                continue;
             }
 
-            $afterLastNewLineToCursor .= $char;
-            if ($char === "\n") {
-                ++$newLinesFound;
-                $afterLastNewLineToCursor = '';
+            if ($i < $cursor) {
+                $lastNewLineToCursor .= $char;
+                if ($char === "\n") {
+                    ++$newLinesFound;
+                    $lastNewLineToCursor = '';
+                }
             }
         }
 
         $this->lineNumber = $newLinesFound + 1;
-        $this->firstPartOfLine = $afterLastNewLineToCursor;
+        $this->firstPartOfLine = $lastNewLineToCursor;
         $this->lastPartOfLine = $cursorToNextNewLine;
-        $this->currentLine = $afterLastNewLineToCursor . $cursorToNextNewLine;
+        $this->currentLine = $lastNewLineToCursor . $cursorToNextNewLine;
 
-        $this->columnNumber = mb_strlen($afterLastNewLineToCursor);
+        if (function_exists('mb_strlen')) {
+            $this->columnNumber = mb_strlen($lastNewLineToCursor);
+        } else {
+            $this->columnNumber = strlen($lastNewLineToCursor);
+        }
 
-        $this->initNextAndLastChar($cursorToNextNewLine, $afterLastNewLineToCursor);
+        $this->initNextAndLastChar($cursorToNextNewLine, $lastNewLineToCursor);
     }
 
 

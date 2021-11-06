@@ -44,13 +44,12 @@ class ParserBench
         $this->parserOld = new ParserOld();
         $this->fusionFileContext = null;
 
-        $this->fusionFileContext = "/home/macode/dba/dba-codes_website-main/DistributionPackages/Resources/Private/Fusion/Root.fusion";
 //        $this->fusionFileContext = "/home/some/path/to/private/site/to/test/many/files";
-        $this->bigFusionToBeParsed = <<<'Fusion'
-        include: **/*.fusion
-        include: "resource://Neos.Fusion/Private/Fusion/Root.fusion"
-        include: "resource://Neos.Neos/Private/Fusion/Root.fusion"
-        Fusion;
+//        $this->bigFusionToBeParsed = <<<'Fusion'
+//        include: **/*.fusion
+//        include: "resource://Neos.Fusion/Private/Fusion/Root.fusion"
+//        include: "resource://Neos.Neos/Private/Fusion/Root.fusion"
+//        Fusion;
 
         $this->mediumFusionToBeParsed = <<<'Fusion'
         include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
@@ -84,23 +83,23 @@ class ParserBench
         Fusion;
     }
 
-    /**
-     * @Iterations(10)
-     * @Revs(10)
-     */
-    public function bench_parser_old_big_ast()
-    {
-        $this->parserOld->parse($this->bigFusionToBeParsed, $this->fusionFileContext);
-    }
-
-    /**
-     * @Iterations(10)
-     * @Revs(10)
-     */
-    public function bench_parser_new_big_ast()
-    {
-        $this->newParser->parse($this->bigFusionToBeParsed, $this->fusionFileContext);
-    }
+//    /**
+//     * @Iterations(10)
+//     * @Revs(10)
+//     */
+//    public function bench_parser_old_big_ast()
+//    {
+//        $this->parserOld->parse($this->bigFusionToBeParsed, $this->fusionFileContext);
+//    }
+//
+//    /**
+//     * @Iterations(10)
+//     * @Revs(10)
+//     */
+//    public function bench_parser_new_big_ast()
+//    {
+//        $this->newParser->parse($this->bigFusionToBeParsed, $this->fusionFileContext);
+//    }
 
     /**
      * @Iterations(10)

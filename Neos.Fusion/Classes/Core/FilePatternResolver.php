@@ -49,10 +49,10 @@ class FilePatternResolver
     {
         $filePattern = trim($filePattern);
         if ($filePattern === '') {
-            throw new Fusion\Exception("cannot resolve empty pattern: '$filePattern'", 1636144288);
+            throw new \Exception("cannot resolve empty pattern: '$filePattern'");
         }
         if ($filePattern[0] === '/') {
-            throw new Fusion\Exception("cannot resolve absolute pattern: '$filePattern'", 1636144292);
+            throw new \Exception("cannot resolve absolute pattern: '$filePattern'");
         }
         if (self::patternIsStreamWrapperThrowOnInvalid($filePattern) === false) {
             $filePattern = self::resolveRelativePath($filePattern, $filePathForRelativeResolves);
@@ -70,7 +70,7 @@ class FilePatternResolver
             if (in_array($matches['protocol'], stream_get_wrappers(), true)) {
                 return true;
             }
-            throw new Fusion\Exception("Unable to find the stream wrapper '$streamWrapper' while resolving the pattern: '$filePattern'", 1636144734);
+            throw new \Exception("Unable to find the stream wrapper '$streamWrapper' while resolving the pattern: '$filePattern'");
         }
         return false;
     }
@@ -78,7 +78,7 @@ class FilePatternResolver
     protected static function resolveRelativePath(string $filePattern, ?string $currentFilePath): string
     {
         if ($currentFilePath === null) {
-            throw new Fusion\Exception('Relative file resolves are only possible with the argument $currentFilePath passed.', 1636144731);
+            throw new Fusion\Exception('Relative file resolves are only possible with the argument $currentFilePath passed.', 1329806940);
         }
         return dirname($currentFilePath) . '/' . $filePattern;
     }
@@ -107,14 +107,14 @@ class FilePatternResolver
                 break;
 
             default:
-                throw new Fusion\Exception(sprintf('The include glob pattern "%s" is invalid. Only globbing with /**/* or /* is supported.', $filePattern), 1636144713);
+                throw new \Exception(sprintf('The include glob pattern "%s" is invalid. Only globbing with /**/* or /* is supported.', $filePattern),  1635445912);
         }
 
         $basePath = $matches['base'];
         $fileNameEnd = $matches['end'] === '' ? $defaultFileEnd : $matches['end'];
 
         if (is_dir($basePath) === false) {
-            throw new Fusion\Exception(sprintf('The path %s of the glob pattern "%s" does not point to a directory.', $basePath, $filePattern), 1636144717);
+            throw new Fusion\Exception(sprintf('The path %s of the glob pattern "%s" does not point to a directory.', $basePath, $filePattern), 1415033180);
         }
 
         $iterator = $fileIteratorCreator($basePath);

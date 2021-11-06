@@ -37,6 +37,13 @@ class AstBuilder
         return ['__prototypes', $prototypeName];
     }
 
+    public static function countPrototypePaths(...$paths): int
+    {
+        return array_reduce($paths, function ($result, $path) {
+            return self::objectPathIsPrototype($path) ? ++$result : $result;
+        }, 0);
+    }
+
     public static function throwIfKeyIsReservedParseTreeKey(string $pathKey)
     {
         if (substr($pathKey, 0, 2) === '__'

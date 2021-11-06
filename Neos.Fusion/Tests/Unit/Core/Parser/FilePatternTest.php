@@ -345,7 +345,7 @@ class FilePatternTest extends UnitTestCase
     {
         $pattern = $this->addStreamWrapper($pattern);
         self::expectException(\Exception::class);
-        self::expectExceptionCode(1636144713);
+        self::expectExceptionCode(1635445912);
         FilePatternResolver::resolveFilesByPattern($pattern);
     }
 }

@@ -136,7 +136,7 @@ class Parser extends AbstractParser implements ParserInterface
         } catch (ParserException $e) {
             throw $e;
         } catch (Fusion\Exception $e) {
-            throw new ParserException(ParserException::MESSAGE_FROM_INPUT | ParserException::HIDE_COLUMN, $this->getParsingContext(), $e->getCode(), 'Exception while parsing: ' . $e->getMessage(), $e);
+            throw new ParserException(ParserException::MESSAGE_FROM_INPUT | ParserException::HIDE_COLUMN, $this->getParsingContext(), $e->getCode(), 'Exception while parsing: ' . $e->getMessage());
         }
     }
 
@@ -234,7 +234,6 @@ class Parser extends AbstractParser implements ParserInterface
     protected function parseUnsetStatement(): void
     {
         $this->expect(Token::UNSET_KEYWORD);
-        $this->lazySmallGap();
         $currentPath = $this->parseAssignedObjectPath($this->getCurrentObjectPathPrefix());
         $this->astBuilder->removeValueInObjectTree($currentPath);
         $this->parseEndOfStatement();
@@ -407,6 +406,7 @@ class Parser extends AbstractParser implements ParserInterface
         $this->setObjectTypeNamespace($namespaceAlias, $namespacePackageKey);
     }
 
+
     /**
      * IncludeStatement
      *  = INCLUDE ( StringLiteral / FILE_PATTERN ) EndOfStatement
@@ -433,11 +433,12 @@ class Parser extends AbstractParser implements ParserInterface
         } catch (ParserException $e) {
             throw $e;
         } catch (Fusion\Exception $e) {
-            throw new ParserException(ParserException::MESSAGE_FROM_INPUT | ParserException::HIDE_COLUMN, $this->getParsingContext(), $e->getCode(), $e->getMessage());
+            throw new ParserException(ParserException::MESSAGE_FROM_INPUT | ParserException::HIDE_COLUMN, $this->getParsingContext(), 1635708717, $e->getMessage());
         }
 
         $this->parseEndOfStatement();
     }
+
 
     /**
      * Parse an include files by pattern. Currently, we start a new parser object; but we could as well re-use
@@ -547,7 +548,7 @@ class Parser extends AbstractParser implements ParserInterface
                 $this->consume();
                 $prototypename = $this->parseFusionObjectName();
                 $this->expect(Token::RPAREN);
-                return ['__prototypes', $prototypename];
+                return AstBuilder::toFusionPrototypePath($prototypename);
 
             case $this->accept(Token::OBJECT_PATH_PART):
                 $value = $this->consume()->getValue();
@@ -661,6 +662,7 @@ class Parser extends AbstractParser implements ParserInterface
         $temporaryAst = $parser->parse('value = ' . $transpiledFusion);
         return $temporaryAst['value'];
     }
+
 
     /**
      * EelExpression

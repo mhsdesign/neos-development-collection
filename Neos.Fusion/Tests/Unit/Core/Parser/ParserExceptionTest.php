@@ -223,7 +223,7 @@ class ParserExceptionTest extends TestCase
             $parser->parse($fusion);
             self::fail('No exception was thrown. Expected message: ' . $expectedMessage);
         } catch (ParserException $e) {
-            self::assertSame($expectedMessage, $e->getGeneratedMessage());
+            self::assertEquals($expectedMessage, $e->getGeneratedMessage());
         }
     }
 }

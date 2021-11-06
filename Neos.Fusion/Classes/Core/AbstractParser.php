@@ -84,11 +84,11 @@ abstract class AbstractParser
      */
     protected function lazyExpect(int $tokenType): ?bool
     {
-        if ($this->accept($tokenType) === false) {
-            return false;
+        if ($this->accept($tokenType)) {
+            $this->consume();
+            return true;
         }
-        $this->consume();
-        return true;
+        return false;
     }
 
     /**
@@ -138,7 +138,7 @@ abstract class AbstractParser
      * Get the current file, cursor and the code the lexer is using.
      *
      * @param int $offset
-     * @return array{?string, string, int}
+     * @return array{string, string, int}
      */
     protected function getParsingContext(int $offset = 0): array
     {
