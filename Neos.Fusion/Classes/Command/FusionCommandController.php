@@ -192,10 +192,18 @@ Fusion;
     public function newCommand()
     {
         $fusion = <<<'Fusion'
-include: **/*
+
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+        include: "resource://Neos.Demo/Private/Fusion/Root.fusion"
+
 Fusion;
 
-        $context = 'resource://Neos.Demo/Private/Fusion/Root.fusion';
+//        $context = 'resource://Neos.Demo/Private/Fusion/Root.fusion';
+        $context = "/home/macode/dba/dba-codes_website-main/DistributionPackages/Resources/Private/Fusion/Root.fusion";
         $this->dump((new Parser())->parse($fusion,  $context));
     }
 

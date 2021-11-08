@@ -164,7 +164,7 @@ class ParserTest extends TestCase
 
     public function commentsTest()
     {
-        $obj = function (string $name):array {
+        $obj = function(string $name): array {
             return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
         };
         return[
@@ -299,7 +299,7 @@ class ParserTest extends TestCase
 
     public function namespaceDeclaration()
     {
-        $obj = function (string $name):array {
+        $obj = function(string $name): array {
             return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
         };
         return [
@@ -530,7 +530,7 @@ class ParserTest extends TestCase
     }
 
     public function eelValueAssign() {
-        $eel = function (string $exp):array {
+        $eel = function(string $exp): array {
             return ['__eelExpression' => $exp, '__value' => null, '__objectType' => null];
         };
         yield [
@@ -616,7 +616,7 @@ class ParserTest extends TestCase
     }
 
     public function fusionObjectNameEdgeCases() {
-        $obj = function (string $name):array {
+        $obj = function(string $name): array {
             return ['__objectType' => $name, '__value' => null, '__eelExpression' => null];
         };
         return [

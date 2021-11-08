@@ -11,39 +11,10 @@ use Neos\Utility\Arrays;
 class AstBuilder
 {
     /**
-     * Reserved parse tree keys for internal usage.
-     *
-     * @var array
-     */
-    public static $reservedParseTreeKeys = ['__meta', '__prototypes', '__stopInheritanceChain', '__prototypeObjectName', '__prototypeChain', '__value', '__objectType', '__eelExpression'];
-
-    /**
      * The Fusion object tree
      * @var array
      */
     protected $objectTree = [];
-
-    public static function toFusionMetaPath(string $metaName): array
-    {
-        if ($metaName === 'override') {
-            $metaName = 'context';
-        }
-        return ['__meta', $metaName];
-
-    }
-
-    public static function toFusionPrototypePath(string $prototypeName): array
-    {
-        return ['__prototypes', $prototypeName];
-    }
-
-    public static function throwIfKeyIsReservedParseTreeKey(string $pathKey)
-    {
-        if (substr($pathKey, 0, 2) === '__'
-            && in_array($pathKey, self::$reservedParseTreeKeys, true)) {
-            throw new Fusion\Exception(sprintf('Reversed key "%s" used.', $pathKey), 1437065270);
-        }
-    }
 
     public static function objectPathIsPrototype($path): bool
     {

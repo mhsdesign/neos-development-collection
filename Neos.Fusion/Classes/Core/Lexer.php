@@ -1,14 +1,14 @@
 <?php
 
 namespace Neos\Fusion\Core;
-use Neos\Fusion;
 
 /**
  * @internal
  */
 final class Lexer
 {
-    // Added an atomic group (to prevent catastrophic backtracking) and removed the end anchor $
+    // Difference to: Neos\Eel\Package::EelExpressionRecognizer
+    // added an atomic group (to prevent catastrophic backtracking) and removed the end anchor $
     protected const PATTERN_EEL_EXPRESSION = <<<'REGEX'
     /
       ^\${(?P<exp>
@@ -72,7 +72,7 @@ final class Lexer
         Token::PROTOTYPE => '/^prototype\\s*:/',
         Token::UNSET_KEYWORD => '/^unset\\s*:/',
 
-        // Objectpathsegments
+        // Object path segments
         Token::PROTOTYPE_START => '/^prototype\(/',
         Token::META_PATH_START => '/^@/',
         Token::OBJECT_PATH_PART => '/^[a-zA-Z0-9_:-]+/',
@@ -115,7 +115,8 @@ final class Lexer
         /x
         REGEX,
 
-        Token::FILE_PATTERN => '`^[a-zA-Z0-9.*:/_-]+`',
+        Token::REST_OF_LINE => '/^[^\\n]+/',
+//        Token::FILE_PATTERN => '`^[a-zA-Z0-9.*:/_-]+`',
     ];
 
     /**
@@ -148,11 +149,6 @@ final class Lexer
         return $this->cursor;
     }
 
-//    public function getLookahead(): ?Token
-//    {
-//        return $this->lookahead;
-//    }
-
     /**
      * Initializes the code
      */
@@ -165,22 +161,15 @@ final class Lexer
 
     public function consumeLookahead(): Token
     {
-//        if ($this->lookahead === null) {
-//            throw new Fusion\Exception("cannot consume if no token was generated", 1635708717);
-//        }
-//        if ($this->lookahead->getType() === Token::EOF) {
-//            throw new Fusion\Exception("cannot consume <EOF>", 1635708718);
-//        }
         $token = $this->lookahead;
         $this->lookahead = null;
         return $token;
     }
 
-    public function tryGenerateLookahead(int $tokenType): ?Token
+    public function getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead(int $tokenType): ?Token
     {
         if ($this->lookahead !== null) {
             return $this->lookahead;
-//            throw new Fusion\Exception("cannot generate token if one was generated", 1635708719);
         }
         if ($this->cursor === $this->codeLen){
             return $this->lookahead = new Token(Token::EOF, '');
@@ -201,24 +190,4 @@ final class Lexer
 
         return $this->lookahead = new Token($tokenType, $matches[0]);
     }
-
-//    protected function isEof(): bool
-//    {
-//        return $this->cursor === $this->codeLen;
-//    }
-
-//    protected static function matchRegex(string $regexp, string $string): ?string
-//    {
-//        $isMatch = preg_match($regexp, $string, $matches);
-//        if ($isMatch === 0) {
-//            return null;
-//        }
-//        if ($isMatch === false) {
-//            throw new Fusion\Exception("the regular expression: '$regexp' throws an error on this string: '$string'", 1635708720);
-//        }
-//        if (strlen($matches[0]) === 0) {
-//            throw new Fusion\Exception("the regular expression: '$regexp' matches only a position marker on this string: '$string'", 1635708721);
-//        }
-//        return $matches[0];
-//    }
 }

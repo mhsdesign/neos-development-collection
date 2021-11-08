@@ -27,7 +27,6 @@ abstract class AbstractParser
      * Can only consume if accept was called before.
      *
      * @return Token
-     * @throws Fusion\Exception
      */
     protected function consume(): Token
     {
@@ -41,11 +40,10 @@ abstract class AbstractParser
      *
      * @param int $tokenType
      * @return bool
-     * @throws \Exception
      */
     protected function accept(int $tokenType): bool
     {
-        $token = $this->lexer->tryGenerateLookahead($tokenType);
+        $token = $this->lexer->getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead($tokenType);
         if ($token === null) {
             return false;
         }
@@ -63,27 +61,25 @@ abstract class AbstractParser
      */
     protected function expect(int $tokenType): Token
     {
-        $token = $this->lexer->tryGenerateLookahead($tokenType);
-
-        if ($token !== null && $token->getType() === $tokenType) {
-            return  $this->lexer->consumeLookahead();
+        $token = $this->lexer->getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead($tokenType);
+        if ($token === null || $token->getType() !== $tokenType) {
+            throw new Fusion\Exception('Expected token: "' . Token::typeToString($tokenType) . '"', 1635708717);
         }
-
-        throw new Fusion\Exception('Expected token: "' . Token::typeToString($tokenType) . '"', 1635708717);
+        return $this->lexer->consumeLookahead();
     }
 
     /**
      * Checks, if the token type matches the current, if so consume it and return true.
      * @param int $tokenType
      * @return bool|null
-     * @throws Fusion\Exception
      */
     protected function lazyExpect(int $tokenType): ?bool
     {
-        if ($this->accept($tokenType) === false) {
+        $token = $this->lexer->getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead($tokenType);
+        if ($token === null || $token->getType() !== $tokenType) {
             return false;
         }
-        $this->consume();
+        $this->lexer->consumeLookahead();
         return true;
     }
 

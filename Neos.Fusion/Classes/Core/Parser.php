@@ -23,7 +23,6 @@ use Neos\Fusion\Exception;
  */
 class Parser extends AbstractParser implements ParserInterface
 {
-    // TODO: duplicate in Astbuilder but required to runtime
     /**
      * Reserved parse tree keys for internal usage.
      *
@@ -88,21 +87,17 @@ class Parser extends AbstractParser implements ParserInterface
      */
     public function parse($sourceCode, $contextPathAndFilename = null, $objectTreeUntilNow = null, bool $buildPrototypeHierarchy = true): array
     {
-        // TODO remove
-        // return (new ParserOld())->parse($sourceCode, $contextPathAndFilename, $objectTreeUntilNow ?? [], $buildPrototypeHierarchy);
-
-        if (is_string($sourceCode) === false) {
-            // TODO why not type string $sourceCode in argument ?
+        if (\is_string($sourceCode) === false) {
             throw new Fusion\Exception('Cannot parse Fusion - $sourceCode must be of type string!', 1180203775);
         }
 
-        if ($objectTreeUntilNow === null) {
+        if ($objectTreeUntilNow instanceof AstBuilder) {
+            $this->astBuilder = $objectTreeUntilNow;
+        } elseif ($objectTreeUntilNow === null) {
             $this->astBuilder = new AstBuilder();
-        } elseif (is_array($objectTreeUntilNow)) {
+        } elseif (\is_array($objectTreeUntilNow)) {
             $this->astBuilder = new AstBuilder();
             $this->astBuilder->setObjectTree($objectTreeUntilNow);
-        } elseif ($objectTreeUntilNow instanceof AstBuilder) {
-            $this->astBuilder = $objectTreeUntilNow;
         } else {
             throw new Fusion\Exception('Cannot parse Fusion - $objectTreeUntilNow must be of type array or AstBuilder or null');
         }
@@ -115,7 +110,7 @@ class Parser extends AbstractParser implements ParserInterface
 
         $this->parseFusion();
 
-        if ($this->delayedCombinedException) {
+        if ($this->delayedCombinedException !== null) {
             throw $this->delayedCombinedException;
         }
         if ($buildPrototypeHierarchy) {
@@ -163,12 +158,13 @@ class Parser extends AbstractParser implements ParserInterface
     protected function parseStatement(): void
     {
         switch (true) {
-            case $this->accept(Token::NAMESPACE):
-                $this->parseNamespaceDeclaration();
-                return;
-
+            // watch out for the order, its regex matching and first one wins.
             case $this->accept(Token::INCLUDE):
                 $this->parseIncludeStatement();
+                return;
+
+            case $this->accept(Token::NAMESPACE):
+                $this->parseNamespaceDeclaration();
                 return;
 
             case $this->accept(Token::PROTOTYPE):
@@ -414,14 +410,14 @@ class Parser extends AbstractParser implements ParserInterface
     protected function parseIncludeStatement(): void
     {
         $this->expect(Token::INCLUDE);
-        $this->lazySmallGap();
+        $this->lazyExpect(Token::SPACE);
 
         switch (true) {
             case $this->accept(Token::STRING):
             case $this->accept(Token::CHAR):
                 $filePattern = $this->parseStringLiteral();
                 break;
-            case $this->accept(Token::FILE_PATTERN):
+            case $this->accept(Token::REST_OF_LINE):
                 $filePattern = $this->consume()->getValue();
                 break;
             default:
@@ -545,19 +541,20 @@ class Parser extends AbstractParser implements ParserInterface
         switch (true) {
             case $this->accept(Token::PROTOTYPE_START):
                 $this->consume();
-                $prototypename = $this->parseFusionObjectName();
+                $prototypeName = $this->parseFusionObjectName();
                 $this->expect(Token::RPAREN);
-                return ['__prototypes', $prototypename];
+                return ['__prototypes', $prototypeName];
 
             case $this->accept(Token::OBJECT_PATH_PART):
                 $value = $this->consume()->getValue();
-                AstBuilder::throwIfKeyIsReservedParseTreeKey($value);
+                self::throwIfKeyIsReservedParseTreeKey($value);
                 return [$value];
 
             case $this->accept(Token::META_PATH_START):
                 $this->consume();
                 $metaName = $this->expect(Token::OBJECT_PATH_PART)->getValue();
-                return AstBuilder::toFusionMetaPath($metaName);
+                $metaName = $metaName === 'override' ? 'context' : $metaName;
+                return ['__meta', $metaName];
 
             case $this->accept(Token::STRING):
             case $this->accept(Token::CHAR):
@@ -744,6 +741,14 @@ class Parser extends AbstractParser implements ParserInterface
     {
         $lastElementOfStack = end($this->currentObjectPathStack);
         return ($lastElementOfStack === false) ? [] : $lastElementOfStack;
+    }
+
+    protected static function throwIfKeyIsReservedParseTreeKey(string $pathKey)
+    {
+        if (substr($pathKey, 0, 2) === '__'
+            && in_array($pathKey, self::$reservedParseTreeKeys, true)) {
+            throw new Fusion\Exception(sprintf('Reversed key "%s" used.', $pathKey), 1437065270);
+        }
     }
 
     /**

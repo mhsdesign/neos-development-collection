@@ -29,6 +29,7 @@ class ParserIncludeTest extends UnitTestCase
             'root.fusion' => '"root.fusion" = true',
             'file.fusion' => '"file.fusion" = true',
             'sp3z:al-CHAR_.fs' => '"sp3z:al-CHAR_.fs" = true',
+            'file with space.fusion' => '"file with space.fusion" = true',
             'Globbing' => [
                 'Nested' => [
                     'level2-A.fusion' => '"Globbing/Nested/level2-A.fusion" = true',
@@ -90,6 +91,12 @@ class ParserIncludeTest extends UnitTestCase
             'context' => 'vfs://fusion/file.fusion',
             'fusion ' => 'include:./file.fusion',
             'include' => []
+        ];
+
+        yield 'single file with spaces without quotes' => [
+            'context' => 'vfs://fusion/file.fusion',
+            'fusion ' => 'include:file with space.fusion',
+            'include' => ['file with space.fusion' => true]
         ];
     }
 
@@ -173,9 +180,6 @@ class ParserIncludeTest extends UnitTestCase
         ];
     }
 
-
-
-
     /**
      * @dataProvider includeSingleFile
      * @dataProvider includeNormalGlobbing
@@ -193,34 +197,13 @@ class ParserIncludeTest extends UnitTestCase
     /**
      * @test
      */
-    public function testIncludeAndParseFilesByPattern()
-    {
-        $fusionCode = <<<Fusion
-        include: /**/*
-        include: //hello
-        Fusion;
-        $expectedPattern = '/**/*';
-
-        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
-        $parser
-            ->expects(self::once())
-            ->method('includeAndParseFilesByPattern')
-            ->with($expectedPattern);
-
-        $parser->parse($fusionCode);
-    }
-
-    /**
-     * @test
-     */
     public function absoluteIncludePathsRaiseError()
     {
-
         self::expectException(Fusion\Exception::class);
         self::expectExceptionCode(1636144292);
 
         $fusionCode = <<<Fusion
-        include: "/**/*"
+        include: /**/*
         Fusion;
 
         $parser = new Parser();
@@ -228,37 +211,39 @@ class ParserIncludeTest extends UnitTestCase
     }
 
 
-    public function invalidFusionIncludes()
+    public function weirdFusionIncludesAreParsed(): \Generator
     {
         yield 'pattern with direct comment' => [
-            'include: pattern/* hello this is (not) a comment */',
+            'include: pattern/* hello this is (not) a comment */', 'pattern/* hello this is (not) a comment */'
         ];
         yield 'unquoted pattern with spaces' => [
-            'include: fusion file with space.fusion',
+            'include: fusion file with space.fusion', 'fusion file with space.fusion'
         ];
-        yield 'unquoted pattern with invalid char' => [
-            'include: folder/äüö.fusion',
+        yield 'unquoted pattern with uncommon char' => [
+            'include: folder/äüö.fusion', 'folder/äüö.fusion'
+        ];
+        yield 'unquoted pattern with what could be a comment as start' => [
+            'include: /**/*', '/**/*'
+        ];
+        yield 'unquoted pattern with what could be a comment as start 2' => [
+            'include: // hello', '// hello'
         ];
     }
 
     /**
-     * @dataProvider invalidFusionIncludes
+     * @dataProvider weirdFusionIncludesAreParsed
      * @test
      */
-    public function testInvalidIncludesWithParsingExceptionEndOfStatementExpected($fusion)
+    public function testFusionIncludesArePassedCorrectlyToIncludeAndParseFilesByPattern($fusion, $includePattern)
     {
-        self::expectException(ParserException::class);
-        self::expectExceptionCode(1635878683);
-
         $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
         $parser
             ->expects(self::once())
-            ->method('includeAndParseFilesByPattern');
+            ->method('includeAndParseFilesByPattern')
+            ->with($includePattern);
 
         $parser->parse($fusion);
     }
-
-
 
     /**
      * FilePattern accept only simple File paths or /**\/* and /*
