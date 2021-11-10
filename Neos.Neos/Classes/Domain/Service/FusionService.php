@@ -22,7 +22,6 @@ use Neos\Utility\Files;
 use Neos\ContentRepository\Domain\Model\NodeType;
 use Neos\Fusion\Core\Parser;
 use Neos\Fusion\Core\Runtime;
-
 /**
  * The Fusion Service
  *

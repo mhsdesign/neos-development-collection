@@ -90,7 +90,6 @@ class Parser extends AbstractParser implements ParserInterface
         if (\is_string($sourceCode) === false) {
             throw new Fusion\Exception('Cannot parse Fusion - $sourceCode must be of type string!', 1180203775);
         }
-
         if ($objectTreeUntilNow instanceof AstBuilder) {
             $this->astBuilder = $objectTreeUntilNow;
         } elseif ($objectTreeUntilNow === null) {
@@ -157,30 +156,39 @@ class Parser extends AbstractParser implements ParserInterface
      */
     protected function parseStatement(): void
     {
-        switch (true) {
-            // watch out for the order, its regex matching and first one wins.
-            case $this->accept(Token::INCLUDE):
+        switch ($this->acceptOneOf(
+            Token::INCLUDE,
+            Token::NAMESPACE,
+            Token::PROTOTYPE,
+            Token::UNSET_KEYWORD,
+            Token::PROTOTYPE_START,
+            Token::OBJECT_PATH_PART,
+            Token::META_PATH_START,
+            Token::STRING,
+            Token::CHAR
+        )) {
+            case Token::OBJECT_PATH_PART:
+            case Token::PROTOTYPE_START:
+            case Token::META_PATH_START:
+            case Token::STRING:
+            case Token::CHAR:
+                $this->parseObjectDefinition();
+                return;
+
+            case Token::INCLUDE:
                 $this->parseIncludeStatement();
                 return;
 
-            case $this->accept(Token::NAMESPACE):
-                $this->parseNamespaceDeclaration();
-                return;
-
-            case $this->accept(Token::PROTOTYPE):
+            case Token::PROTOTYPE:
                 $this->parsePrototypeDeclaration();
                 return;
 
-            case $this->accept(Token::UNSET_KEYWORD):
-                $this->parseUnsetStatement();
+            case Token::NAMESPACE:
+                $this->parseNamespaceDeclaration();
                 return;
 
-            case $this->accept(Token::PROTOTYPE_START):
-            case $this->accept(Token::OBJECT_PATH_PART):
-            case $this->accept(Token::META_PATH_START):
-            case $this->accept(Token::STRING):
-            case $this->accept(Token::CHAR):
-                $this->parseObjectDefinition();
+            case Token::UNSET_KEYWORD:
+                $this->parseUnsetStatement();
                 return;
         }
 
@@ -324,17 +332,22 @@ class Parser extends AbstractParser implements ParserInterface
         $exceptionContextAfterPath = $this->getParsingContext();
 
         $operationWasParsed = null;
-        switch (true) {
-            case $this->accept(Token::ASSIGNMENT):
+        switch ($this->acceptOneOf(
+            Token::ASSIGNMENT,
+            Token::UNSET,
+            Token::COPY,
+            Token::EXTENDS
+        )) {
+            case Token::ASSIGNMENT:
                 $this->parseValueAssignment($currentPath);
                 break;
 
-            case $this->accept(Token::UNSET):
+            case Token::UNSET:
                 $this->parseValueUnset($currentPath);
                 break;
 
-            case $this->accept(Token::COPY):
-            case $this->accept(Token::EXTENDS):
+            case Token::COPY:
+            case Token::EXTENDS:
                 $this->parseValueCopy($currentPath);
                 break;
 
@@ -412,12 +425,16 @@ class Parser extends AbstractParser implements ParserInterface
         $this->expect(Token::INCLUDE);
         $this->lazyExpect(Token::SPACE);
 
-        switch (true) {
-            case $this->accept(Token::STRING):
-            case $this->accept(Token::CHAR):
+        switch ($this->acceptOneOf(
+            Token::STRING,
+            Token::CHAR,
+            Token::REST_OF_LINE
+        )) {
+            case Token::STRING:
+            case Token::CHAR:
                 $filePattern = $this->parseStringLiteral();
                 break;
-            case $this->accept(Token::REST_OF_LINE):
+            case Token::REST_OF_LINE:
                 $filePattern = $this->consume()->getValue();
                 break;
             default:
@@ -538,26 +555,32 @@ class Parser extends AbstractParser implements ParserInterface
      */
     protected function parsePathSegment(): array
     {
-        switch (true) {
-            case $this->accept(Token::PROTOTYPE_START):
+        switch ($this->acceptOneOf(
+            Token::PROTOTYPE_START,
+            Token::OBJECT_PATH_PART,
+            Token::META_PATH_START,
+            Token::STRING,
+            Token::CHAR
+        )) {
+            case Token::PROTOTYPE_START:
                 $this->consume();
                 $prototypeName = $this->parseFusionObjectName();
                 $this->expect(Token::RPAREN);
                 return ['__prototypes', $prototypeName];
 
-            case $this->accept(Token::OBJECT_PATH_PART):
+            case Token::OBJECT_PATH_PART:
                 $value = $this->consume()->getValue();
                 self::throwIfKeyIsReservedParseTreeKey($value);
                 return [$value];
 
-            case $this->accept(Token::META_PATH_START):
+            case Token::META_PATH_START:
                 $this->consume();
                 $metaName = $this->expect(Token::OBJECT_PATH_PART)->getValue();
                 $metaName = $metaName === 'override' ? 'context' : $metaName;
                 return ['__meta', $metaName];
 
-            case $this->accept(Token::STRING):
-            case $this->accept(Token::CHAR):
+            case Token::STRING:
+            case Token::CHAR:
                 $value = $this->parseStringLiteral();
                 if ($value === '') {
                     throw new ParserException(ParserException::MESSAGE_FROM_INPUT, $this->getParsingContext(), 1635708717, "A quoted path must not be empty");
@@ -587,31 +610,53 @@ class Parser extends AbstractParser implements ParserInterface
         return $namespace . ':' . $unqualifiedType;
     }
 
+
     /**
      * PathValue
      *  = ( Literal / DSL_EXPRESSION / FusionObject / EelExpression )
      */
     protected function parsePathValue()
     {
-        switch (true) {
-            // watch out for the order, its regex matching and first one wins.
-            case $this->accept(Token::FALSE_VALUE):
-            case $this->accept(Token::NULL_VALUE):
-            case $this->accept(Token::TRUE_VALUE):
-            case $this->accept(Token::INTEGER):
-            case $this->accept(Token::FLOAT):
-            case $this->accept(Token::STRING):
-            case $this->accept(Token::CHAR):
-                return $this->parseLiteral();
+        switch ($this->acceptOneOf(
+            Token::FALSE_VALUE,
+            Token::NULL_VALUE,
+            Token::TRUE_VALUE,
+            Token::INTEGER,
+            Token::FLOAT,
+            Token::STRING,
+            Token::CHAR,
+            Token::DSL_EXPRESSION_START,
+            Token::OBJECT_TYPE_PART,
+            Token::EEL_EXPRESSION
+        )) {
 
-            case $this->accept(Token::DSL_EXPRESSION_START):
+            case Token::TRUE_VALUE:
+                $this->consume();
+                return true;
+            case Token::FALSE_VALUE:
+                $this->consume();
+                return false;
+            case Token::NULL_VALUE:
+                $this->consume();
+                return null;
+
+            case Token::STRING:
+            case Token::CHAR:
+                return $this->parseStringLiteral();
+
+            case Token::INTEGER:
+                return (int)$this->consume()->getValue();
+            case Token::FLOAT:
+                return (float)$this->consume()->getValue();
+
+            case Token::DSL_EXPRESSION_START:
                 return $this->parseDslExpression();
 
             // Needs to come later, since the regex is too greedy.
-            case $this->accept(Token::OBJECT_TYPE_PART):
+            case Token::OBJECT_TYPE_PART:
                 return $this->parseFusionObject();
 
-            case $this->accept(Token::EEL_EXPRESSION):
+            case Token::EEL_EXPRESSION:
                 return $this->parseEelExpression();
         }
         throw new ParserException(ParserException::MESSAGE_PARSING_VALUE_ASSIGNMENT, $this->getParsingContext(), 1635708717);
@@ -687,49 +732,21 @@ class Parser extends AbstractParser implements ParserInterface
 
     /**
      * Literal
-     *  = ( TRUE_VALUE / FALSE_VALUE / NULL_VALUE / STRING / CHAR / INTEGER / FLOAT )
-     *
-     * @return mixed
-     */
-    protected function parseLiteral()
-    {
-        switch (true) {
-            case $this->accept(Token::TRUE_VALUE):
-                $this->consume();
-                return true;
-            case $this->accept(Token::FALSE_VALUE):
-                $this->consume();
-                return false;
-            case $this->accept(Token::NULL_VALUE):
-                $this->consume();
-                return null;
-
-            case $this->accept(Token::STRING):
-            case $this->accept(Token::CHAR):
-                return $this->parseStringLiteral();
-
-            case $this->accept(Token::INTEGER):
-                return (int)$this->consume()->getValue();
-            case $this->accept(Token::FLOAT):
-                return (float)$this->consume()->getValue();
-        }
-        throw new ParserException(ParserException::MESSAGE_UNEXPECTED_CHAR | ParserException::MESSAGE_FROM_INPUT, $this->getParsingContext(), 1635708717, 'Expected literal.');
-    }
-
-    /**
-     * Literal
      *  = ( STRING / CHAR )
      *
      */
     protected function parseStringLiteral(): string
     {
-        switch (true) {
-            case $this->accept(Token::STRING):
+        switch ($this->acceptOneOf(
+            Token::STRING,
+            Token::CHAR
+        )) {
+            case Token::STRING:
                 $string = $this->consume()->getValue();
                 $string = substr($string, 1, -1);
                 return stripcslashes($string);
 
-            case $this->accept(Token::CHAR):
+            case Token::CHAR:
                 $char = $this->consume()->getValue();
                 $char = substr($char, 1, -1);
                 return stripslashes($char);

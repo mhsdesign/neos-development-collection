@@ -50,6 +50,12 @@ abstract class AbstractParser
         return $token->getType() === $tokenType;
     }
 
+    protected function acceptOneOf(...$tokenTypes): ?int
+    {
+        return $this->lexer->getLookaheadOrTryMatchOneOfTokens($tokenTypes);
+    }
+
+
     /**
      * Expects a token of a given type.
      * The Lexer will look up the regex for the token and try to match it on the current string.
@@ -89,20 +95,13 @@ abstract class AbstractParser
      */
     protected function lazyBigGap(): void
     {
-        while (true) {
-            switch (true) {
-                case $this->accept(Token::SPACE):
-                case $this->accept(Token::NEWLINE):
-                case $this->accept(Token::SLASH_COMMENT):
-                case $this->accept(Token::HASH_COMMENT):
-                case $this->accept(Token::MULTILINE_COMMENT):
-                    $this->consume();
-                    break;
-
-                default:
-                    return;
-            }
-        }
+        $this->lexer->consumeGreedyOneOrMultipleOfTokens([
+            Token::SPACE,
+            Token::NEWLINE,
+            Token::SLASH_COMMENT,
+            Token::HASH_COMMENT,
+            Token::MULTILINE_COMMENT
+        ]);
     }
 
     /**
@@ -111,19 +110,12 @@ abstract class AbstractParser
      */
     protected function lazySmallGap(): void
     {
-        while (true) {
-            switch (true) {
-                case $this->accept(Token::SPACE):
-                case $this->accept(Token::SLASH_COMMENT):
-                case $this->accept(Token::HASH_COMMENT):
-                case $this->accept(Token::MULTILINE_COMMENT):
-                    $this->consume();
-                    break;
-
-                default:
-                    return;
-            }
-        }
+        $this->lexer->consumeGreedyOneOrMultipleOfTokens([
+            Token::SPACE,
+            Token::SLASH_COMMENT,
+            Token::HASH_COMMENT,
+            Token::MULTILINE_COMMENT
+        ]);
     }
 
     /**

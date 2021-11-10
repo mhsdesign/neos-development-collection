@@ -5,9 +5,11 @@ use Neos\Fusion;
 
 class Token
 {
+
+    // nothing shall be 0 - since switch cases do == and null becomes eq to 0
     public const EOF = -1;
 
-    public const SLASH_COMMENT = 0;
+    public const SLASH_COMMENT = 50;
     public const HASH_COMMENT = 1;
     public const MULTILINE_COMMENT = 2;
 
