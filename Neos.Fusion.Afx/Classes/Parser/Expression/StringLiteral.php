@@ -27,41 +27,36 @@ class StringLiteral
      * @return string
      * @throws AfxParserException
      */
-    public static function parse(Lexer $lexer): string
+    public static function parse(Lexer $lexer, bool $keepQuotesAndEscapes = false): string
     {
-        $openingQuoteSign = '';
-        $contents = '';
-        $willBeEscaped = false;
-        if ($lexer->isSingleQuote() || $lexer->isDoubleQuote()) {
-            $openingQuoteSign = $lexer->consume();
-        } else {
-            throw new AfxParserException('Unquoted String literal', 1557860514);
+        if ($lexer->isSingleQuote() === false
+            && $lexer->isDoubleQuote() === false) {
+            throw new AfxParserException("Unquoted String literal", 1557860514);
         }
 
+        $openingQuoteSign = $lexer->consume();
+        $contents = $keepQuotesAndEscapes ? $openingQuoteSign : '';
+
         while (true) {
-            if ($lexer->isEnd()) {
-                throw new AfxParserException(sprintf('Unfinished string literal "%s"', $contents), 1557860504);
+            switch (true) {
+                case $lexer->isEnd():
+                    throw new AfxParserException("Unfinished string literal '$contents'", 1557860504);
+
+                case $lexer->peek() === $openingQuoteSign:
+                    $lexer->consume();
+                    return $keepQuotesAndEscapes ? $contents . $openingQuoteSign : $contents;
+
+                case $lexer->isBackSlash():
+                    $lexer->consume();
+                    if ($keepQuotesAndEscapes) {
+                        $contents .= '\\';
+                    }
+                    $contents .= $lexer->consume();
+                    break;
+
+                default:
+                    $contents .= $lexer->consume();
             }
-
-            if ($lexer->isBackSlash() && !$willBeEscaped) {
-                $willBeEscaped = true;
-                $lexer->consume();
-                continue;
-            }
-
-            if ($lexer->isSingleQuote() || $lexer->isDoubleQuote()) {
-                $closingQuoteSign = $lexer->consume();
-                if (!$willBeEscaped && $openingQuoteSign === $closingQuoteSign) {
-                    return $contents;
-                }
-
-                $contents .= $closingQuoteSign;
-                $willBeEscaped = false;
-                continue;
-            }
-
-            $contents .= $lexer->consume();
-            $willBeEscaped = false;
         }
     }
 }

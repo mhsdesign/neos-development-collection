@@ -39,11 +39,11 @@ class Identifier
                 case $lexer->isMinus():
                 case $lexer->isUnderscore():
                 case $lexer->isAt():
+                    $identifier .= $lexer->consume();
+                    break;
                 case $lexer->isDoubleQuote():
                 case $lexer->isSingleQuote():
-                case $lexer->isBackSlash() && $lexer->peek(2) === '\"':
-                case $lexer->isBackSlash() && $lexer->peek(2) === '\\\'':
-                    $identifier .= $lexer->consume();
+                    $identifier .= StringLiteral::parse($lexer, true);
                     break;
                 case $lexer->isEqualSign():
                 case $lexer->isWhiteSpace():
