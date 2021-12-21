@@ -34,6 +34,7 @@ interface ParserInterface
      * @throws Fusion\Exception
      * @throws ParserException
      * @api
+     * @deprecated with version 7.3 will be removed with 8.0
      */
     public function parse(string $sourceCode, string $contextPathAndFilename = null, $objectTreeUntilNow = null): array;
 }
