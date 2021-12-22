@@ -16,6 +16,7 @@ use Neos\ContentRepository\Domain\Service\NodeTypeManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Mvc\Controller\ControllerContext;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
+use Neos\Fusion\Core\CachedParser;
 use Neos\Neos\Domain\Model\Site;
 use Neos\Neos\Domain\Repository\SiteRepository;
 use Neos\Utility\Files;
@@ -98,6 +99,12 @@ class FusionService
     protected $autoIncludeConfiguration = [];
 
     /**
+     * @Flow\InjectConfiguration("fusion.singleFileCache")
+     * @var bool
+     */
+    protected $singleFileCacheConfiguration = true;
+
+    /**
      * @Flow\Inject
      * @var NodeTypeManager
      */
@@ -136,18 +143,34 @@ class FusionService
     public function getMergedFusionObjectTree(TraversableNodeInterface $startNode)
     {
         $siteResourcesPackageKey = $this->getSiteForSiteNode($startNode)->getSiteResourcesPackageKey();
+//
+//        $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
+//        $siteRootFusionCode = $this->readExternalFusionFile($siteRootFusionPathAndFilename);
+//
+//        $mergedFusionCode = '';
+//        $mergedFusionCode .= $this->generateNodeTypeDefinitions();
+//        $mergedFusionCode .= $this->getFusionIncludes($this->prepareAutoIncludeFusion());
+//        $mergedFusionCode .= $this->getFusionIncludes($this->prependFusionIncludes);
+//        $mergedFusionCode .= $siteRootFusionCode;
+//        $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
+//        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+
 
         $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
-        $siteRootFusionCode = $this->readExternalFusionFile($siteRootFusionPathAndFilename);
+        $siteRootFusionFileInclude = is_file($siteRootFusionPathAndFilename) ? [$siteRootFusionPathAndFilename] : [];
 
-        $mergedFusionCode = '';
-        $mergedFusionCode .= $this->generateNodeTypeDefinitions();
-        $mergedFusionCode .= $this->getFusionIncludes($this->prepareAutoIncludeFusion());
-        $mergedFusionCode .= $this->getFusionIncludes($this->prependFusionIncludes);
-        $mergedFusionCode .= $siteRootFusionCode;
-        $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
+        $fusionIncludes = array_merge(
+            $this->prepareAutoIncludeFusion(),
+            $this->prependFusionIncludes,
+            $siteRootFusionFileInclude,
+            $this->appendFusionIncludes
+        );
 
-        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+        $a = (new CachedParser())->parseIncludeFileList($fusionIncludes);
+        var_export($a['root'] ?? 'nuthinbhg');
+        die();
+
+        return (new Parser())->parseIncludeFileList($fusionIncludes);
     }
 
     /**

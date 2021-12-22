@@ -263,11 +263,7 @@ class ParserIncludeTest extends UnitTestCase
         self::expectException(Fusion\Exception::class);
         self::expectExceptionCode(1635878683);
 
-        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
-        $parser
-            ->expects(self::once())
-            ->method('includeAndParseFilesByPattern');
-
+        $parser = new Parser();
         $parser->parse($fusion);
     }
 

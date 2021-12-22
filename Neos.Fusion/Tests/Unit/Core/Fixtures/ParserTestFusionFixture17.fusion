@@ -10,9 +10,9 @@ include: ParserTestFusionFixture16.fusion
 
 include: ParserTestFusionFixture17b.fusion
 
-prototype(Neos.Foo:Bar2).baz = "New Value"
-
 # Test for globbing and recursive globbing
 include: Globbing/*
 include: Globbing/RecursiveGlobbing/**/*
 include: ../Fixtures/Globbing/GlobbingWithDots/**/*
+
+prototype(Neos.Foo:Bar2).baz = "New Value"
