@@ -125,4 +125,23 @@ class RuntimeTest extends UnitTestCase
 
         $runtime->render('/foo/bar');
     }
+
+    /**
+     * @test
+     */
+    public function runtimeCurrentContextTest()
+    {
+        $controllerContext = $this->getMockBuilder(ControllerContext::class)->disableOriginalConstructor()->getMock();
+        $runtime = new Runtime([], $controllerContext);
+
+        self::assertSame([], $runtime->getCurrentContext(), 'Runtime context should be empty at start.');
+
+        $runtime->pushContext('foo', 'bar');
+
+        self::assertSame(['foo' => 'bar'], $runtime->getCurrentContext(), 'Runtime context has foo => bar in middle.');
+
+        $runtime->popContext();
+
+        self::assertSame([], $runtime->getCurrentContext(), 'Runtime context should be empty again at end.');
+    }
 }
