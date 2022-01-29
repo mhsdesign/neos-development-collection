@@ -32,7 +32,7 @@ class CachedParser extends Parser
     /**
      * @var bool
      */
-    protected $isInClosedParseMode = false;
+    protected $isInNestedIsolatedParseMode = false;
 
     /**
      * @var array
@@ -45,21 +45,24 @@ class CachedParser extends Parser
      */
     public static function flushFusionFileCacheOnFileChanges(VariableFrontend $fusionFileCache, array $changedFiles)
     {
-        foreach (array_keys($changedFiles) as $changedFile) {
+        foreach ($changedFiles as $changedFile => $status) {
 
-            $flowRoot = defined('FLOW_PATH_ROOT') ? FLOW_PATH_ROOT : '';
-            $fusionPathWithoutRoot = str_replace($flowRoot, '', $changedFile);
-
-            $cacheIdentifier = md5($fusionPathWithoutRoot);
+            $cacheIdentifier = self::getCacheIdentifierForRealPath($changedFile);
 
             if ($fusionFileCache->has($cacheIdentifier)) {
-//                echo "cache flushed for $fusionPathWithoutRoot";
                 $fusionFileCache->remove($cacheIdentifier);
             }
         }
     }
 
-    public function merge($tree)
+    protected static function getCacheIdentifierForRealPath(string $realFusionFilePath): string
+    {
+        $flowRoot = defined('FLOW_PATH_ROOT') ? FLOW_PATH_ROOT : '';
+        $realFusionFilePathWithoutRoot = str_replace($flowRoot, '', $realFusionFilePath);
+        return md5($realFusionFilePathWithoutRoot);
+    }
+
+    protected function merge($tree)
     {
         if (isset(static::$globalFusionObjectTree) === false) {
             static::$globalFusionObjectTree = $tree;
@@ -74,37 +77,54 @@ class CachedParser extends Parser
         });
     }
 
+    protected function getFromCacheOrParse(string $sourceCode, ?string $contextPathAndFilename): array
+    {
+        $cacheIdentifier = $this->getCacheIdentifierForPossibleResourcePath($contextPathAndFilename);
+
+        if ($this->fusionFileCache->has($cacheIdentifier)) {
+            return $this->fusionFileCache->get($cacheIdentifier);
+        }
+
+        $watchingAstBuilder = new class extends AstBuilder {
+            public $valueUnsets = [];
+            public function removeValueInObjectTree(array $targetObjectPath): void
+            {
+                $this->valueUnsets[] = $targetObjectPath;
+                parent::removeValueInObjectTree($targetObjectPath);
+            }
+        };
+
+        // TODO: not well solved with parseIncludeFileList, as this is an implementation detail. The parser could have used new self()
+        $this->isInNestedIsolatedParseMode = true;
+        $fusionAst = parent::parse($sourceCode, $contextPathAndFilename, $watchingAstBuilder, false);
+        $this->isInNestedIsolatedParseMode = false;
+
+        $valueUnsets = $watchingAstBuilder->valueUnsets;
+        $includeFiles = $this->includeFiles;
+
+        $fusionFileCache = [
+            $includeFiles,
+            $fusionAst,
+            $valueUnsets
+        ];
+
+//        $this->fusionFileCache->set($cacheIdentifier, $fusionFileCache);
+
+        return $fusionFileCache;
+    }
+
     public function parse(string $sourceCode, string $contextPathAndFilename = null, $objectTreeUntilNow = null, bool $buildPrototypeHierarchy = true): array
     {
         if ($contextPathAndFilename === null) {
-            throw new \Exception("not supported");
+            throw new \InvalidArgumentException('$contextPathAndFilename must be set when using the Cached parser.');
         }
 
-        $cacheIdentifier = $this->getCacheIdentifier($contextPathAndFilename);
+        list(
+            $includeFiles,
+            $fusionAst,
+            $valueUnsets
+            ) = $this->getFromCacheOrParse($sourceCode, $contextPathAndFilename);
 
-        if ($this->fusionFileCache->has($cacheIdentifier)) {
-            list($includeFiles, $fusionAst, $valueUnsets) = $this->fusionFileCache->get($cacheIdentifier);
-        } else {
-            $watchingAstBuilder = new class extends AstBuilder {
-                public $valueUnsets = [];
-                public function removeValueInObjectTree(array $targetObjectPath): void
-                {
-                    $this->valueUnsets[] = $targetObjectPath;
-                    parent::removeValueInObjectTree($targetObjectPath);
-                }
-            };
-
-            $this->isInClosedParseMode = true;
-            $fusionAst = parent::parse($sourceCode, $contextPathAndFilename, $watchingAstBuilder, false);
-            $this->isInClosedParseMode = false;
-
-            $valueUnsets = $watchingAstBuilder->valueUnsets;
-            $includeFiles = $this->includeFiles;
-
-//            $this->fusionFileCache->set($cacheIdentifier, [
-//                $includeFiles, $fusionAst, $valueUnsets
-//            ]);
-        }
 
         if (empty($includeFiles) === false) {
             $includeAst = $this->parseIncludeFileList($includeFiles, $contextPathAndFilename, null, false);
@@ -113,37 +133,47 @@ class CachedParser extends Parser
         }
 
         if (empty($valueUnsets) === false) {
-            $builder = new AstBuilder();
-            $builder->setObjectTree(static::$globalFusionObjectTree);
             foreach ($valueUnsets as $valueUnset) {
-                $builder->setValueInObjectTree($valueUnset, null);
+                static::$globalFusionObjectTree = Arrays::unsetValueByPath(static::$globalFusionObjectTree, $valueUnset);
             }
-            static::$globalFusionObjectTree = $builder->getObjectTree();
         }
 
         if (empty($fusionAst) === false) {
             $this->merge($fusionAst);
         }
 
+        if ($buildPrototypeHierarchy) {
+            $builder = new AstBuilder();
+            $builder->setObjectTree(static::$globalFusionObjectTree);
+            $builder->buildPrototypeHierarchy();
+            static::$globalFusionObjectTree = $builder->getObjectTree();
+        }
+
         if ($objectTreeUntilNow instanceof AstBuilder) {
             $objectTreeUntilNow->setObjectTree(static::$globalFusionObjectTree);
         }
+
+
+//        if (isset(static::$globalFusionObjectTree['root'])) {
+//            echo $contextPathAndFilename . ' ';
+//            var_export(static::$globalFusionObjectTree['root']);
+//            echo "\n";
+//        }
 
         return static::$globalFusionObjectTree;
     }
 
     public function parseIncludeFileList(array $filePatterns, $contextPathAndFilename = null, $objectTreeUntilNow = null, bool $buildPrototypeHierarchy = true): array
     {
-//        parseIncludeFileList is called from outside:
-//        do nothing as this is fine.
-        if ($this->isInClosedParseMode) {
+        if ($this->isInNestedIsolatedParseMode) {
             $this->includeFiles = $filePatterns;
             return [];
         }
+        // parseIncludeFileList is called from outside.
         return parent::parseIncludeFileList($filePatterns, $contextPathAndFilename, null, true);
     }
 
-    protected function absolutePathOfResource(string $requestedPath): string
+    protected function getAbsolutePathOfResource(string $requestedPath): string
     {
         $requestPathParts = explode('://', $requestedPath, 2);
         if ($requestPathParts[0] !== ResourceStreamWrapper::getScheme()) {
@@ -168,24 +198,20 @@ class CachedParser extends Parser
             throw new \Exception(sprintf('Invalid resource URI "%s": Package "%s" is not available.', $requestedPath, $packageName), 123, $packageException);
         }
 
-        if (!$package instanceof FlowPackageInterface) {
+        if ($package instanceof FlowPackageInterface === false) {
             return false;
         }
 
         return Files::concatenatePaths([$package->getResourcesPath(), $path]);
     }
 
-    protected function getCacheIdentifier(string $contextPathAndFilename): string
+    protected function getCacheIdentifierForPossibleResourcePath(string $contextPathAndFilename): string
     {
         $absolutePath = $contextPathAndFilename;
         if (strpos($contextPathAndFilename, '://') !== false) {
-            $absolutePath = $this->absolutePathOfResource($contextPathAndFilename);
+            $absolutePath = $this->getAbsolutePathOfResource($contextPathAndFilename);
         }
         $realPath = realpath($absolutePath);
-
-        $flowRoot = defined('FLOW_PATH_ROOT') ? FLOW_PATH_ROOT : '';
-        $fusionPathWithoutRoot = str_replace($flowRoot, '', $realPath);
-
-        return md5($fusionPathWithoutRoot);
+        return self::getCacheIdentifierForRealPath($realPath);
     }
 }

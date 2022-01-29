@@ -61,6 +61,11 @@ class Parser extends AbstractParser implements ParserInterface
     protected $delayedCombinedException;
 
     /**
+     * @var bool
+     */
+    protected $buildPrototypeHierarchy = true;
+
+    /**
      * Parses the given Fusion source code and returns an object tree
      * as the result.
      *
@@ -159,7 +164,7 @@ class Parser extends AbstractParser implements ParserInterface
             $filePatterns[] = $this->parseIncludeStatement();
             $this->lazyBigGap();
         }
-        $this->parseIncludeFileList($filePatterns, null,null, false);
+        $this->parseIncludeFileList($filePatterns, $this->contextPathAndFilename, $this->astBuilder, false);
     }
 
     /**
@@ -254,7 +259,7 @@ class Parser extends AbstractParser implements ParserInterface
             return;
         }
 
-        if ($currentPathsPrototype || $sourcePathIsPrototype) {
+        if ($currentPathsPrototype xor $sourcePathIsPrototype) {
             // Only one of "source" or "target" is a prototype. We do not support copying a
             // non-prototype value to a prototype value or vice-versa.
             // delay throw since there might be syntax errors causing this.

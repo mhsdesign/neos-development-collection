@@ -23,6 +23,7 @@ use Neos\Utility\Files;
 use Neos\ContentRepository\Domain\Model\NodeType;
 use Neos\Fusion\Core\Parser;
 use Neos\Fusion\Core\Runtime;
+use PHPUnit\Framework\TestCase;
 
 /**
  * The Fusion Service
@@ -166,11 +167,19 @@ class FusionService
             $this->appendFusionIncludes
         );
 
-        $a = (new CachedParser())->parseIncludeFileList($fusionIncludes);
-        var_export($a['root'] ?? 'nuthinbhg');
-        die();
 
-        return (new Parser())->parseIncludeFileList($fusionIncludes);
+//
+//        var_export($fusionIncludes);
+//        die();
+
+        $a = (new CachedParser())->parseIncludeFileList($fusionIncludes);
+        $b = (new Parser())->parseIncludeFileList($fusionIncludes);
+//        TestCase::assertEquals($b, $a);
+//
+//        var_export($a['root'] ?? 'nuthinbhg');
+//        die();
+
+        return $a;
     }
 
     /**
