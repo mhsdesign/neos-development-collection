@@ -2,7 +2,9 @@
 
 namespace Neos\Fusion\Core\CachedParser;
 
-class WatchingParser extends \Neos\Fusion\Core\Parser
+use Neos\Fusion\Core\Parser;
+
+class WatchingParser extends Parser
 {
     public $watchedFileIncludes = [];
 

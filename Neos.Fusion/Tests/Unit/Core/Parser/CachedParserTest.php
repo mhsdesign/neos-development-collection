@@ -17,6 +17,9 @@ use Neos\Fusion\Core\CachedParser\CachedParser;
 use Neos\Fusion\Core\Parser;
 use org\bovigo\vfs\vfsStream;
 
+/**
+ * we compare the output of the cached parser against the well tested parser.
+ */
 class CachedParserTest extends UnitTestCase
 {
 
@@ -54,18 +57,20 @@ class CachedParserTest extends UnitTestCase
      * @dataProvider fusionFiles
      * @throws \Neos\Fusion\Exception
      */
-    public function testFusionMatches($directory)
+    public function testFusionMatches(array $directoryStructure)
     {
-        $directory += [
+        $fusionEntryCodeWithIncludes = join("\n", array_map(function ($path) {
+            return "include: vfs://fusion/$path";
+        }, array_keys($directoryStructure)));
+
+        $contextPathAndFilename = 'vfs://fusion/entry.fusion';
+
+        $directoryStructure += [
             // file must exist... for stat()
-            'entry.fusion' => ''
+            'entry.fusion' => $fusionEntryCodeWithIncludes // we could leave $fusionIncludes out...
         ];
 
-        vfsStream::setup('fusion', null, $directory);
-
-        $fusionIncludes = join("\n", array_map(function ($p) {
-            return "include: vfs://fusion/$p";
-        }, array_keys($directory)));
+        vfsStream::setup('fusion', null, $directoryStructure);
 
         $fusionFileCache = $this->getMockBuilder(VariableFrontend::class)->disableOriginalConstructor()->getMock();
 
@@ -78,11 +83,11 @@ class CachedParserTest extends UnitTestCase
             ->method('set');
 
         $cachedParser = new CachedParser();
-        // Disable cache:
+        // 'Disable' cache:
         $this->inject($cachedParser, 'fusionFilesObjectTreeCache', $fusionFileCache);
 
-        $normal = (new Parser())->parse($fusionIncludes);
-        $cached = $cachedParser->parse($fusionIncludes, 'vfs://fusion/entry.fusion');
+        $normal = (new Parser())->parse($fusionEntryCodeWithIncludes, $contextPathAndFilename);
+        $cached = $cachedParser->parse($fusionEntryCodeWithIncludes, $contextPathAndFilename);
 
         self::assertSame($normal, $cached);
     }

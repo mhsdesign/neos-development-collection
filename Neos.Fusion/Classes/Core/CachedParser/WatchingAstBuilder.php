@@ -2,7 +2,9 @@
 
 namespace Neos\Fusion\Core\CachedParser;
 
-class WatchingAstBuilder extends \Neos\Fusion\Core\AstBuilder
+use Neos\Fusion\Core\AstBuilder;
+
+class WatchingAstBuilder extends AstBuilder
 {
     public $watchedValueUnsets = [];
     public function removeValueInObjectTree(array $targetObjectPath): void

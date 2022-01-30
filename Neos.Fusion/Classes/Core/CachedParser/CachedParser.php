@@ -3,15 +3,11 @@
 namespace Neos\Fusion\Core\CachedParser;
 
 use Neos\Cache\Frontend\VariableFrontend;
-use Neos\Flow\Package\FlowPackageInterface;
-use Neos\Flow\Package\PackageManager;
 use Neos\Flow\ResourceManagement\Streams\ResourceStreamWrapper;
 use Neos\Fusion\Core\AstBuilder;
 use Neos\Fusion\Core\FilePatternResolver;
 use Neos\Fusion\Core\ParserInterface;
 use Neos\Utility\Arrays;
-use Neos\Utility\Files;
-use Neos\Flow\Annotations as Flow;
 
 class CachedParser implements ParserInterface
 {
@@ -24,28 +20,6 @@ class CachedParser implements ParserInterface
      * @var ?array
      */
     protected $globalFusionObjectTree;
-
-    /**
-     * @Flow\Inject
-     * @var PackageManager
-     */
-    public $packageManager;
-
-    /**
-     * Connected in bootstrap.
-     *
-     */
-    public static function flushFusionFileCacheOnFileChanges(VariableFrontend $fusionFileCache, array $changedFiles)
-    {
-        foreach ($changedFiles as $changedFile => $status) {
-
-            $cacheIdentifier = self::getCacheIdentifierForRealPath($changedFile);
-
-            if ($fusionFileCache->has($cacheIdentifier)) {
-                $fusionFileCache->remove($cacheIdentifier);
-            }
-        }
-    }
 
     /**
      * TODO we allow includes everywhere, but they are treated as if they are at the top - this could result in a different result.
@@ -84,20 +58,23 @@ class CachedParser implements ParserInterface
         return $output;
     }
 
-    public function parseIncludeFileList(array $fusionAbsoluteIncludes, bool $buildPrototypeHierarchy = true): array
-    {
-        $this->parseAndMergeIncludeFilesInternal($fusionAbsoluteIncludes);
-        if ($buildPrototypeHierarchy) {
-            $builder = new AstBuilder();
-            $builder->setObjectTree($this->globalFusionObjectTree);
-            $builder->buildPrototypeHierarchy();
-            $this->globalFusionObjectTree = $builder->getObjectTree();
-        }
-        $output = $this->globalFusionObjectTree;
-        // reset our global tree
-        $this->globalFusionObjectTree = null;
-        return $output;
-    }
+//    /**
+//     * TODO use this in fusion service...
+//     */
+//    public function parseIncludeFileList(array $fusionAbsoluteIncludes, bool $buildPrototypeHierarchy = true): array
+//    {
+//        $this->parseAndMergeIncludeFilesInternal($fusionAbsoluteIncludes);
+//        if ($buildPrototypeHierarchy) {
+//            $builder = new AstBuilder();
+//            $builder->setObjectTree($this->globalFusionObjectTree);
+//            $builder->buildPrototypeHierarchy();
+//            $this->globalFusionObjectTree = $builder->getObjectTree();
+//        }
+//        $output = $this->globalFusionObjectTree;
+//        // reset our global tree
+//        $this->globalFusionObjectTree = null;
+//        return $output;
+//    }
 
     protected function parseInternal(string $sourceCode, string $contextPathAndFilename)
     {
@@ -142,7 +119,7 @@ class CachedParser implements ParserInterface
 
     protected function getFromCacheOrParse(string $sourceCode, ?string $contextPathAndFilename): array
     {
-        $cacheIdentifier = $this->getCacheIdentifierForPossibleResourcePath($contextPathAndFilename);
+        $cacheIdentifier = self::getCacheIdentifierForPossibleUnresolvedResourcePath($contextPathAndFilename);
 
         if ($this->fusionFilesObjectTreeCache->has($cacheIdentifier)) {
             return $this->fusionFilesObjectTreeCache->get($cacheIdentifier);
@@ -184,67 +161,32 @@ class CachedParser implements ParserInterface
         }
     }
 
-    protected function getCacheIdentifierForPossibleResourcePath(string $contextPathAndFilename): string
+    public static function getCacheIdentifierForPossibleUnresolvedResourcePath(string $contextPathAndFilename): string
     {
-        $absolutePath = $contextPathAndFilename;
-        if (strpos($contextPathAndFilename, '://') !== false) {
-            $absolutePath = $this->getAbsolutePathOfResource($contextPathAndFilename);
-        }
-        if (strpos($contextPathAndFilename, 'vfs://') === 0) {
-            // TODO testing ...
-            $realPath = $absolutePath;
-        } else {
-            $realPath = realpath($absolutePath);
-        }
-        return self::getCacheIdentifierForRealPath($realPath);
-    }
-
-    protected static function getCacheIdentifierForRealPath(string $realFusionFilePath): string
-    {
+        $realPath = self::getRealPath($contextPathAndFilename);
         $flowRoot = defined('FLOW_PATH_ROOT') ? FLOW_PATH_ROOT : '';
-        $realFusionFilePathWithoutRoot = str_replace($flowRoot, '', $realFusionFilePath);
+        $realFusionFilePathWithoutRoot = str_replace($flowRoot, '', $realPath);
         return md5($realFusionFilePathWithoutRoot);
     }
 
-    /**
-     * Since the ResourceStreamWrapper has no option for this we build it our self
-     *
-     */
-    protected function getAbsolutePathOfResource(string $requestedPath): string
+    protected static function getRealPath(string $requestedPath): string
     {
-        $requestPathParts = explode('://', $requestedPath, 2);
-        if ($requestPathParts[0] !== ResourceStreamWrapper::getScheme()) {
+        if (strpos($requestedPath, '://') === false) {
+            return realpath($requestedPath);
+        }
 
-            // TODO testing... realpath ...
-            if ($requestPathParts[0] === 'vfs') {
+        list($protocol) = explode('://', $requestedPath, 2);
+        switch ($protocol) {
+            case ResourceStreamWrapper::getScheme():
+                $absolutePath = (new ResourceStreamWrapperHelper())->getAbsolutePath($requestedPath);
+                return realpath($absolutePath);
+            case 'vfs':
+                if (strpos($requestedPath, './') !== false) {
+                    throw new \Exception("relative path '$requestedPath' is not allowed for 'vfs'", 1643541301);
+                }
                 return $requestedPath;
-            }
-
-            throw new \InvalidArgumentException('The ' . __CLASS__ . ' only supports the \'' . ResourceStreamWrapper::getScheme() . '\' scheme.', 123);
+            default:
+                throw new \Exception("Scheme '$protocol' is not supported.", 1643541360);
         }
-
-        if (isset($requestPathParts[1]) === false) {
-            throw new \InvalidArgumentException('Incomplete $requestedPath', 123);
-        }
-
-        $resourceUriWithoutScheme = $requestPathParts[1];
-
-        if (strpos($resourceUriWithoutScheme, '/') === false && preg_match('/^[0-9a-f]{40}$/i', $resourceUriWithoutScheme) === 1) {
-            throw new \InvalidArgumentException('Can process resource', 123);
-        }
-
-        list($packageName, $path) = explode('/', $resourceUriWithoutScheme, 2);
-
-        try {
-            $package = $this->packageManager->getPackage($packageName);
-        } catch (\Neos\Flow\Package\Exception\UnknownPackageException $packageException) {
-            throw new \Exception(sprintf('Invalid resource URI "%s": Package "%s" is not available.', $requestedPath, $packageName), 123, $packageException);
-        }
-
-        if ($package instanceof FlowPackageInterface === false) {
-            return false;
-        }
-
-        return Files::concatenatePaths([$package->getResourcesPath(), $path]);
     }
 }

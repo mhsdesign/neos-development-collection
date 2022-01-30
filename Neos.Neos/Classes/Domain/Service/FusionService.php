@@ -163,9 +163,9 @@ class FusionService
 //        for ($x = 0; $x <= 1; $x++) {
 
         $a = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-            $b = (new ParserOld())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+//        $b = (new ParserOld())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
 //              $c = (new Parser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-            TestCase::assertSame($a, $b);
+//        TestCase::assertSame($a, $b);
 
 //        }
         return $a;
