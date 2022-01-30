@@ -12,7 +12,19 @@ prototype(Neos.NodeTypes.Navigation:Navigation) < prototype(Neos.Neos:Menu) {
   maximumLevels = ${q(node).property('maximumLevels')}
   maximumLevels.@process.1 = ${String.toInteger(value)}
 
-  attributes.class.@process < prototype(Neos.Neos:Content).attributes.class.@process
+  attributes.class.@process.nodeType = Neos.Fusion:Case {
+    @context.nodeTypeClassName = ${String.toLowerCase(String.pregReplace(q(node).property('_nodeType.name'), '/[[:^alnum:]]/', '-'))}
+
+    classIsString {
+      condition = ${Type.isString(value)}
+      renderer = ${String.trim(String.trim(value) + ' ' + nodeTypeClassName)}
+    }
+
+    classIsArray {
+      condition = ${Type.isArray(value)}
+      renderer = ${Array.push(value, nodeTypeClassName)}
+    }
+  }
 
   active.attributes = Neos.Fusion:Attributes {
     class = 'active'

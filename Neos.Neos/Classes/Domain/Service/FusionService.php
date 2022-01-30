@@ -16,7 +16,8 @@ use Neos\ContentRepository\Domain\Service\NodeTypeManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Mvc\Controller\ControllerContext;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
-use Neos\Fusion\Core\CachedParser;
+use Neos\Fusion\Core\CachedParser\CachedParser;
+use Neos\Fusion\Core\ParserOld;
 use Neos\Neos\Domain\Model\Site;
 use Neos\Neos\Domain\Repository\SiteRepository;
 use Neos\Utility\Files;
@@ -144,42 +145,53 @@ class FusionService
     public function getMergedFusionObjectTree(TraversableNodeInterface $startNode)
     {
         $siteResourcesPackageKey = $this->getSiteForSiteNode($startNode)->getSiteResourcesPackageKey();
-//
-//        $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
-//        $siteRootFusionCode = $this->readExternalFusionFile($siteRootFusionPathAndFilename);
-//
-//        $mergedFusionCode = '';
-//        $mergedFusionCode .= $this->generateNodeTypeDefinitions();
-//        $mergedFusionCode .= $this->getFusionIncludes($this->prepareAutoIncludeFusion());
-//        $mergedFusionCode .= $this->getFusionIncludes($this->prependFusionIncludes);
-//        $mergedFusionCode .= $siteRootFusionCode;
-//        $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
-//        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-
 
         $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
-        $siteRootFusionFileInclude = is_file($siteRootFusionPathAndFilename) ? [$siteRootFusionPathAndFilename] : [];
+        $siteRootFusionCode = $this->readExternalFusionFile($siteRootFusionPathAndFilename);
 
-        $fusionIncludes = array_merge(
-            $this->prepareAutoIncludeFusion(),
-            $this->prependFusionIncludes,
-            $siteRootFusionFileInclude,
-            $this->appendFusionIncludes
-        );
+        $mergedFusionCode = '';
+        $mergedFusionCode .= $this->generateNodeTypeDefinitions();
+        $mergedFusionCode .= $this->getFusionIncludes($this->prepareAutoIncludeFusion());
+        $mergedFusionCode .= $this->getFusionIncludes($this->prependFusionIncludes);
+        $mergedFusionCode .= $siteRootFusionCode;
+        $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
 
+
+//        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
 
 //
+//        $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
+//        $siteRootFusionFileInclude = is_file($siteRootFusionPathAndFilename) ? [$siteRootFusionPathAndFilename] : [];
+//
+//        $fusionIncludes = array_merge(
+//            $this->prepareAutoIncludeFusion(),
+//            $this->prependFusionIncludes,
+//            $siteRootFusionFileInclude,
+//            $this->appendFusionIncludes
+//        );
+
+//        for ($x = 0; $x <= 10; $x++) {
+
+
+
 //        var_export($fusionIncludes);
 //        die();
 
-        $a = (new CachedParser())->parseIncludeFileList($fusionIncludes);
-        $b = (new Parser())->parseIncludeFileList($fusionIncludes);
+            // 3.5
+        // 530  1.8
+//        $c = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+        // 400  900
+        $c = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+        // 400  1.4
+//        $c = (new Parser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
 //        TestCase::assertEquals($b, $a);
 //
+//        \Neos\Flow\var_dump($c['root']);
+//        die();
 //        var_export($a['root'] ?? 'nuthinbhg');
 //        die();
-
-        return $a;
+//        }
+        return $c;
     }
 
     /**

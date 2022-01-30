@@ -58,13 +58,8 @@ class Package extends BasePackage
             $cacheManager->getCache('Neos_Neos_XliffToJsonTranslations')->flush();
         };
 
-        $flushFusionFilesCache = function (array $changedFiles) use ($bootstrap) {
-            $cacheManager = $bootstrap->getEarlyInstance(CacheManager::class);
-            $fusionFileCache = $cacheManager->getCache('Neos_Neos_Fusion_Files');
-            CachedParser::flushFusionFileCacheOnFileChanges($fusionFileCache, $changedFiles);
-        };
 
-        $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', function ($fileMonitorIdentifier, array $changedFiles) use ($flushConfigurationCache, $flushXliffServiceCache, $flushFusionFilesCache) {
+        $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', function ($fileMonitorIdentifier, array $changedFiles) use ($flushConfigurationCache, $flushXliffServiceCache) {
             switch ($fileMonitorIdentifier) {
                 case 'ContentRepository_NodeTypesConfiguration':
                 case 'Flow_ConfigurationFiles':
@@ -73,8 +68,6 @@ class Package extends BasePackage
                 case 'Flow_TranslationFiles':
                     $flushConfigurationCache();
                     $flushXliffServiceCache();
-                case 'Fusion_Files':
-                    $flushFusionFilesCache($changedFiles);
             }
         });
 

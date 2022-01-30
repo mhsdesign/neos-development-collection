@@ -65,6 +65,13 @@ class Package extends BasePackage
                     $cacheManager = $bootstrap->getEarlyInstance(CacheManager::class);
                     $listener = new FileMonitorListener($cacheManager);
                     $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', $listener, 'flushContentCacheOnFileChanges');
+                    $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', function ($fileMonitorIdentifier, array $changedFiles) use($cacheManager) {
+                        if ($fileMonitorIdentifier !== 'Fusion_Files') {
+                            return;
+                        }
+                        $fusionFileCache = $cacheManager->getCache('Neos_Fusion_FilesObjectTree');
+                        \Neos\Fusion\Core\CachedParser\CachedParser::flushFusionFileCacheOnFileChanges($fusionFileCache, $changedFiles);
+                    });
                 }
             });
         }

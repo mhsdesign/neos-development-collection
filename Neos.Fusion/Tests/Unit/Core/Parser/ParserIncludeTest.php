@@ -226,12 +226,22 @@ class ParserIncludeTest extends UnitTestCase
      */
     public function testFusionIncludesArePassedCorrectlyToIncludeAndParseFilesByPattern($fusion, $includePattern): void
     {
-        $parser = $this->getMockBuilder(Parser::class)->disableOriginalConstructor()->onlyMethods(['includeAndParseFilesByPattern'])->getMock();
-        $parser
-            ->expects(self::once())
-            ->method('includeAndParseFilesByPattern')
-            ->with($includePattern);
+        $className = 'FileIncluderClass' . md5(uniqid(mt_rand(), true));
+        eval('
+            class ' . $className . ' {
+                public function __invoke($includePattern, $contextPathAndFilename, $astBuilder): void
+                {
+                }
+            }
+        ');
 
+        $fileIncluder = $this->getMockBuilder($className)->getMock();
+        $fileIncluder
+            ->expects(self::once())
+            ->method('__invoke')
+            ->with($includePattern, self::isNull(), self::isInstanceOf(Fusion\Core\AstBuilder::class));
+
+        $parser = new Parser($fileIncluder);
         $parser->parse($fusion);
     }
 
@@ -263,7 +273,21 @@ class ParserIncludeTest extends UnitTestCase
         self::expectException(Fusion\Exception::class);
         self::expectExceptionCode(1635878683);
 
-        $parser = new Parser();
+        $className = 'FileIncluderClass' . md5(uniqid(mt_rand(), true));
+        eval('
+            class ' . $className . ' {
+                public function __invoke($includePattern, $contextPathAndFilename, $astBuilder): void
+                {
+                }
+            }
+        ');
+
+        $fileIncluder = $this->getMockBuilder($className)->getMock();
+        $fileIncluder
+            ->expects(self::once())
+            ->method('__invoke');
+
+        $parser = new Parser($fileIncluder);
         $parser->parse($fusion);
     }
 

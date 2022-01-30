@@ -24,16 +24,6 @@ Neos\Neos\Aspects\FusionCachingAspect:
           1:
             value: Neos_Neos_Fusion
 
-Neos\Fusion\Core\CachedParser:
-  properties:
-    fusionFileCache:
-      object:
-        factoryObjectName: Neos\Flow\Cache\CacheManager
-        factoryMethodName: getCache
-        arguments:
-          1:
-            value: Neos_Neos_Fusion_Files
-
 'Neos\ContentRepository\Domain\Service\ContentDimensionPresetSourceInterface':
   className: Neos\Neos\Domain\Service\ConfigurationContentDimensionPresetSource
 

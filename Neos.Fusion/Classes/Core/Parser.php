@@ -61,9 +61,18 @@ class Parser extends AbstractParser implements ParserInterface
     protected $delayedCombinedException;
 
     /**
-     * @var bool
+     * @var callable
      */
-    protected $buildPrototypeHierarchy = true;
+    protected $fusionIncludeHandler;
+
+    public function __construct(?callable $fusionIncludeHandler = null)
+    {
+        if (isset($fusionIncludeHandler) === false) {
+            $this->fusionIncludeHandler = [static::class, 'includeAndParseFilesByPattern'];
+            return;
+        }
+        $this->fusionIncludeHandler = $fusionIncludeHandler;
+    }
 
     /**
      * Parses the given Fusion source code and returns an object tree
@@ -101,37 +110,12 @@ class Parser extends AbstractParser implements ParserInterface
     }
 
     /**
-     * @throws Fusion\Exception
-     */
-    public function parseIncludeFileList(array $filePatterns, string $contextPathAndFilename = null, $objectTreeUntilNow = null, bool $buildPrototypeHierarchy = true): array
-    {
-        if ($this->astBuilder === null) {
-            $this->astBuilder = self::initializeAstBuilder($objectTreeUntilNow);
-        }
-
-        if ($this->contextPathAndFilename === null) {
-            $this->contextPathAndFilename = $contextPathAndFilename;
-        }
-
-        foreach ($filePatterns as $filePattern) {
-            $this->includeAndParseFilesByPattern($filePattern);
-        }
-
-        if ($buildPrototypeHierarchy) {
-            $this->astBuilder->buildPrototypeHierarchy();
-        }
-
-        return $this->astBuilder->getObjectTree();
-    }
-
-    /**
      * Fusion
      *  = StatementList
      */
     protected function parseFusion(): void
     {
         try {
-            $this->parseIncludes();
             $this->parseStatementList();
         } catch (ParserException $e) {
             throw $e;
@@ -153,18 +137,6 @@ class Parser extends AbstractParser implements ParserInterface
                 ->withFile($this->contextPathAndFilename)->withFusion($this->lexer->getCode())->withCursor($this->lexer->getCursor())
                 ->build();
         }
-    }
-
-    protected function parseIncludes(): void
-    {
-        $filePatterns = [];
-        $this->lazyBigGap();
-        while ($this->accept(Token::EOF) === false
-            && $this->accept(Token::INCLUDE)) {
-            $filePatterns[] = $this->parseIncludeStatement();
-            $this->lazyBigGap();
-        }
-        $this->parseIncludeFileList($filePatterns, $this->contextPathAndFilename, $this->astBuilder, false);
     }
 
     /**
@@ -191,6 +163,10 @@ class Parser extends AbstractParser implements ParserInterface
     {
         // watch out for the order, its regex matching and first one wins.
         switch (true) {
+            case $this->accept(Token::INCLUDE):
+                $this->parseIncludeStatement();
+                return;
+
             case $this->accept(Token::PROTOTYPE_START):
             case $this->accept(Token::OBJECT_PATH_PART):
             case $this->accept(Token::META_PATH_START):
@@ -259,7 +235,7 @@ class Parser extends AbstractParser implements ParserInterface
             return;
         }
 
-        if ($currentPathsPrototype xor $sourcePathIsPrototype) {
+        if ($currentPathsPrototype || $sourcePathIsPrototype) {
             // Only one of "source" or "target" is a prototype. We do not support copying a
             // non-prototype value to a prototype value or vice-versa.
             // delay throw since there might be syntax errors causing this.
@@ -326,7 +302,7 @@ class Parser extends AbstractParser implements ParserInterface
      * IncludeStatement
      *  = INCLUDE ( StringLiteral / FILE_PATTERN ) EndOfStatement
      */
-    protected function parseIncludeStatement(): string
+    protected function parseIncludeStatement(): void
     {
         $this->expect(Token::INCLUDE);
         $this->lazyExpect(Token::SPACE);
@@ -343,30 +319,40 @@ class Parser extends AbstractParser implements ParserInterface
                 throw new ParserUnexpectedCharException('Expected file pattern in quotes or [a-zA-Z0-9.*:/_-]', 1635708717);
         }
 
-        $this->parseEndOfStatement();
+        try {
+            ($this->fusionIncludeHandler)($filePattern, $this->contextPathAndFilename, $this->astBuilder);
+        } catch (ParserException $e) {
+            throw $e;
+        } catch (Fusion\Exception $e) {
+            throw (new ParserException())
+                ->withCode($e->getCode())
+                ->withMessage($e->getMessage())
+                ->withoutColumnShown()
+                ->withFile($this->contextPathAndFilename)->withFusion($this->lexer->getCode())->withCursor($this->lexer->getCursor())
+                ->build();
+        }
 
-        return $filePattern;
+        $this->parseEndOfStatement();
     }
 
     /**
-     * Parse an include files by pattern. Currently, we start a new parser object; but we could as well re-use
-     * the given one.
+     * Parse an include files by pattern. We start a new parser object.
      *
      * @param string $filePattern The include-pattern, for example " FooBar" or " resource://....". Can also include wildcard mask for Fusion globbing.
      * @throws Fusion\Exception
      */
-    protected function includeAndParseFilesByPattern(string $filePattern): void
+    protected static function includeAndParseFilesByPattern(string $filePattern, ?string $contextPathAndFilename, AstBuilder $astBuilder): void
     {
         $parser = new static();
-        $filesToInclude = FilePatternResolver::resolveFilesByPattern($filePattern, $this->contextPathAndFilename, '.fusion');
+        $filesToInclude = FilePatternResolver::resolveFilesByPattern($filePattern, $contextPathAndFilename, '.fusion');
         foreach ($filesToInclude as $file) {
             if (is_readable($file) === false) {
                 throw new Fusion\Exception("Could not read file '$file' of pattern '$filePattern'.", 1347977017);
             }
             // Check if not trying to recursively include the current file via globbing
-            if ($this->contextPathAndFilename === null
-                || stat($this->contextPathAndFilename) !== stat($file)) {
-                $parser->parse(file_get_contents($file), $file, $this->astBuilder, false);
+            if ($contextPathAndFilename === null
+                || stat($contextPathAndFilename) !== stat($file)) {
+                $parser->parse(file_get_contents($file), $file, $astBuilder, false);
             }
         }
     }
@@ -644,10 +630,6 @@ class Parser extends AbstractParser implements ParserInterface
             && in_array($pathKey, self::$reservedParseTreeKeys, true)) {
             throw new Fusion\Exception("Reversed key '$pathKey' used.", 1437065270);
         }
-        // TODO: enable this?
-        //  if ($pathKey === 'include:' || $pathKey === 'namespace:') {
-        //      throw new Fusion\Exception("Reversed keyword '$pathKey' as path used.", 1437065271);
-        //  }
     }
 
     /**
