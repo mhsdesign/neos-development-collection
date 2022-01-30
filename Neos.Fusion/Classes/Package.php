@@ -18,6 +18,7 @@ use Neos\Flow\Monitor\FileMonitor;
 use Neos\Flow\Package\Package as BasePackage;
 use Neos\Flow\Package\PackageManager;
 use Neos\Fusion\Core\Cache\FileMonitorListener;
+use Neos\Fusion\Core\CachedParser\FileMonitorListener as ObjectTreesFileMonitorListener;
 
 /**
  * The Neos Fusion Package
@@ -65,6 +66,8 @@ class Package extends BasePackage
                     $cacheManager = $bootstrap->getEarlyInstance(CacheManager::class);
                     $listener = new FileMonitorListener($cacheManager);
                     $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', $listener, 'flushContentCacheOnFileChanges');
+                    $objectTreesListener = new ObjectTreesFileMonitorListener($cacheManager);
+                    $dispatcher->connect(FileMonitor::class, 'filesHaveChanged', $objectTreesListener, 'flushFusionFilesObjectTreeCacheOnFileChanges');
                 }
             });
         }
