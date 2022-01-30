@@ -11,18 +11,13 @@ namespace Neos\Fusion\Tests\Unit\Core\Parser;
  * source code.
  */
 
-
 use Neos\Cache\Frontend\VariableFrontend;
-use Neos\Flow\Tests\FunctionalTestCase;
 use Neos\Flow\Tests\UnitTestCase;
 use Neos\Fusion\Core\CachedParser\CachedParser;
 use Neos\Fusion\Core\Parser;
-use Neos\Fusion\Core\ParserOld;
 use org\bovigo\vfs\vfsStream;
-use PHPUnit\Framework\TestCase;
 
-
-class CachedParserTest extends TestCase
+class CachedParserTest extends UnitTestCase
 {
 
     public function fusionFiles()
@@ -62,6 +57,7 @@ class CachedParserTest extends TestCase
     public function testFusionMatches($directory)
     {
         $directory += [
+            // file must exist... for stat()
             'entry.fusion' => ''
         ];
 
@@ -72,19 +68,26 @@ class CachedParserTest extends TestCase
         }, array_keys($directory)));
 
         $fusionFileCache = $this->getMockBuilder(VariableFrontend::class)->disableOriginalConstructor()->getMock();
-//        $testCachedParser = new class($fusionFileCache) extends CachedParser {
-//        };
+
+        $fusionFileCache
+            ->expects(self::atLeastOnce())
+            ->method('has');
+
+        $fusionFileCache
+            ->expects(self::atLeastOnce())
+            ->method('set');
 
         $cachedParser = new CachedParser();
-        $cachedParser->injectFusionFilesObjectTreeCache($fusionFileCache);
+        // Disable cache:
+        $this->inject($cachedParser, 'fusionFilesObjectTreeCache', $fusionFileCache);
 
         $normal = (new Parser())->parse($fusionIncludes);
         $cached = $cachedParser->parse($fusionIncludes, 'vfs://fusion/entry.fusion');
 
-        self::assertEquals($normal, $cached);
+        self::assertSame($normal, $cached);
     }
 
-    public function ftestThatTheyMatch()
+    public function testThatTheyMatch()
     {
         // TODO ... WIP
         $fusionIncludes = "
@@ -110,18 +113,25 @@ class CachedParserTest extends TestCase
 
         $rel = "resource://Neos.Demo/Private/Fusion/Root.fusion";
 
-        $fusionFileCache = $this->getMockBuilder(VariableFrontend::class)->disableOriginalConstructor()->getMock();
-        $testCachedParser = new class($fusionFileCache) extends CachedParser {
-            public function __construct(VariableFrontend $fusionFileCache)
-            {
-                parent::__construct($fusionFileCache);
-            }
-        };
 
+        $fusionFileCache = $this->getMockBuilder(VariableFrontend::class)->disableOriginalConstructor()->getMock();
+
+        $fusionFileCache
+            ->expects(self::atLeastOnce())
+            ->method('has');
+
+        $fusionFileCache
+            ->expects(self::atLeastOnce())
+            ->method('set');
+
+        $cachedParser = new CachedParser();
+
+        // Disable cache:
+        $this->inject($cachedParser, 'fusionFilesObjectTreeCache', $fusionFileCache);
 
         $a = (new Parser())->parse($fusionIncludes, $rel);
-        $b = $testCachedParser->parse($fusionIncludes, $rel);
+        $b = $cachedParser->parse($fusionIncludes, $rel);
 
-        self::assertEquals($a, $b);
+        self::assertSame($a, $b);
     }
 }

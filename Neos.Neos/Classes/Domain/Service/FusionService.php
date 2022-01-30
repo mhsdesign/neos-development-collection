@@ -156,10 +156,22 @@ class FusionService
         $mergedFusionCode .= $siteRootFusionCode;
         $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
 
+        // TODO
+        // CachedParser:    100x  2.4       10x 590              1x 380
+        // ParserOld:       100x  4.5       10x 830              1x 400
+        // Parser:          100x  7.2       10x 1.11             1x 444
+//        for ($x = 0; $x <= 1; $x++) {
 
-//        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+        $a = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+            $b = (new ParserOld())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+//              $c = (new Parser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+            TestCase::assertSame($a, $b);
 
-//
+//        }
+        return $a;
+
+        // TODO now includes which dont belong to the file Demo/Root.fusion will be cached. (solution parse file list api)
+        // TODO use parseIncludeFileList so that appendFusionIncludes are really appended
 //        $siteRootFusionPathAndFilename = sprintf($this->siteRootFusionPattern, $siteResourcesPackageKey);
 //        $siteRootFusionFileInclude = is_file($siteRootFusionPathAndFilename) ? [$siteRootFusionPathAndFilename] : [];
 //
@@ -169,29 +181,7 @@ class FusionService
 //            $siteRootFusionFileInclude,
 //            $this->appendFusionIncludes
 //        );
-
-//        for ($x = 0; $x <= 10; $x++) {
-
-
-
-//        var_export($fusionIncludes);
-//        die();
-
-            // 3.5
-        // 530  1.8
-//        $c = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-        // 400  900
-        $c = (new CachedParser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-        // 400  1.4
-//        $c = (new Parser())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
-//        TestCase::assertEquals($b, $a);
-//
-//        \Neos\Flow\var_dump($c['root']);
-//        die();
-//        var_export($a['root'] ?? 'nuthinbhg');
-//        die();
-//        }
-        return $c;
+//        $result = (new CachedParser())->parseIncludeFileList($fusionIncludes);
     }
 
     /**

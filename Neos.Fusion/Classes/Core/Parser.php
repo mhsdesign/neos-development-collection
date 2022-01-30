@@ -61,20 +61,6 @@ class Parser extends AbstractParser implements ParserInterface
     protected $delayedCombinedException;
 
     /**
-     * @var callable
-     */
-    protected $fusionIncludeHandler;
-
-    public function __construct(?callable $fusionIncludeHandler = null)
-    {
-        if (isset($fusionIncludeHandler) === false) {
-            $this->fusionIncludeHandler = [static::class, 'includeAndParseFilesByPattern'];
-            return;
-        }
-        $this->fusionIncludeHandler = $fusionIncludeHandler;
-    }
-
-    /**
      * Parses the given Fusion source code and returns an object tree
      * as the result.
      *
@@ -320,7 +306,7 @@ class Parser extends AbstractParser implements ParserInterface
         }
 
         try {
-            ($this->fusionIncludeHandler)($filePattern, $this->contextPathAndFilename, $this->astBuilder);
+            $this->includeAndParseFilesByPattern($filePattern);
         } catch (ParserException $e) {
             throw $e;
         } catch (Fusion\Exception $e) {
@@ -336,23 +322,24 @@ class Parser extends AbstractParser implements ParserInterface
     }
 
     /**
-     * Parse an include files by pattern. We start a new parser object.
+     * Parse an include files by pattern. Currently, we start a new parser object; but we could as well re-use
+     * the given one.
      *
      * @param string $filePattern The include-pattern, for example " FooBar" or " resource://....". Can also include wildcard mask for Fusion globbing.
      * @throws Fusion\Exception
      */
-    protected static function includeAndParseFilesByPattern(string $filePattern, ?string $contextPathAndFilename, AstBuilder $astBuilder): void
+    protected function includeAndParseFilesByPattern(string $filePattern): void
     {
         $parser = new static();
-        $filesToInclude = FilePatternResolver::resolveFilesByPattern($filePattern, $contextPathAndFilename, '.fusion');
+        $filesToInclude = FilePatternResolver::resolveFilesByPattern($filePattern, $this->contextPathAndFilename, '.fusion');
         foreach ($filesToInclude as $file) {
             if (is_readable($file) === false) {
                 throw new Fusion\Exception("Could not read file '$file' of pattern '$filePattern'.", 1347977017);
             }
             // Check if not trying to recursively include the current file via globbing
-            if ($contextPathAndFilename === null
-                || stat($contextPathAndFilename) !== stat($file)) {
-                $parser->parse(file_get_contents($file), $file, $astBuilder, false);
+            if ($this->contextPathAndFilename === null
+                || stat($this->contextPathAndFilename) !== stat($file)) {
+                $parser->parse(file_get_contents($file), $file, $this->astBuilder, false);
             }
         }
     }

@@ -22,7 +22,7 @@ use Neos\Fusion;
  *
  * @api
  */
-class ParserOld
+class ParserOld /* implements ParserInterface */
 {
     const SCAN_PATTERN_COMMENT = '/
 		^\s*                       # beginning of line; with numerous whitespace
@@ -260,6 +260,7 @@ class ParserOld
      * with that namespace and name must be defined elsewhere.
      *
      * These namespaces are _not_ used for resolution of processor class names.
+     * @deprecated with version 7.3 will be removed with 8.0
      * @var array
      */
     protected $objectTypeNamespaces = [
@@ -298,14 +299,6 @@ class ParserOld
         return $this->objectTree;
     }
 
-    public function parseIncludeFileList(array $filePatterns)
-    {
-        return (new static())->parse(join("\n", array_map(function ($p) {
-            return 'include: ' . $p;
-        }, $filePatterns)));
-    }
-
-
     /**
      * Sets the given alias to the specified namespace.
      *
@@ -325,6 +318,7 @@ class ParserOld
      * @return void
      * @throws Fusion\Exception
      * @api
+     * @deprecated with version 7.3 will be removed with 8.0
      */
     public function setObjectTypeNamespace($alias, $namespace)
     {
@@ -607,8 +601,7 @@ class ParserOld
         $include = trim($include);
         $parser = new static();
 
-        if (strpos($include, 'vfs://') === 0) {
-        } elseif (strpos($include, 'resource://') !== 0) {
+        if (strpos($include, 'resource://') !== 0) {
             // Resolve relative paths
             if ($this->contextPathAndFilename !== null) {
                 $include = dirname($this->contextPathAndFilename) . '/' . $include;
@@ -617,19 +610,17 @@ class ParserOld
             }
         }
 
-//        \Neos\Flow\var_dump($include);
         // Match recursive wildcard globbing "**/*"
-        if (preg_match('#([^*]*)\*\*/\*#', $include, $matches) === 1) {
+        if (preg_match('#([^\*]*)\*\*/\*#', $include, $matches) === 1) {
             $basePath = $matches['1'];
             if (!is_dir($basePath)) {
                 throw new Fusion\Exception(sprintf('The path %s does not point to a directory.', $basePath) . $this->renderCurrentFileAndLineInformation(), 1415033179);
             }
             $recursiveDirectoryIterator = new \RecursiveDirectoryIterator($basePath);
             $iterator = new \RecursiveIteratorIterator($recursiveDirectoryIterator);
-        // Match simple wildcard globbing "*"
+            // Match simple wildcard globbing "*"
         } elseif (preg_match('#([^\*]*)\*#', $include, $matches) === 1) {
             $basePath = $matches['1'];
-//            \Neos\Flow\var_dump(is_dir($basePath));
             if (!is_dir($basePath)) {
                 throw new Fusion\Exception(sprintf('The path %s does not point to a directory.', $basePath) . $this->renderCurrentFileAndLineInformation(), 1415033180);
             }
@@ -730,8 +721,7 @@ class ParserOld
                 '__objectType' => null
             ];
         } elseif (preg_match(self::SPLIT_PATTERN_VALUELITERAL, $unparsedValue, $matches) === 1) {
-            $processedValue = stripslashes($matches[2] ?? $matches[1]);
-
+            $processedValue = stripslashes(isset($matches[2]) ? $matches[2] : $matches[1]);
         } elseif (preg_match(self::SPLIT_PATTERN_VALUEMULTILINELITERAL, $unparsedValue, $matches) === 1) {
             $processedValue = stripslashes(isset($matches['SingleQuoteValue']) ? $matches['SingleQuoteValue'] : $matches['DoubleQuoteValue']);
             $closingQuoteChar = isset($matches['SingleQuoteChar']) ? $matches['SingleQuoteChar'] : $matches['DoubleQuoteChar'];
