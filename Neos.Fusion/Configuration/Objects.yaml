@@ -17,3 +17,13 @@ Neos\Fusion\Aspects\FusionCachingAspect:
         arguments:
           1:
             value: Neos_Fusion_ObjectTree
+
+Neos\Fusion\Core\Parser:
+  properties:
+    fusionFilesObjectTreeCache:
+      object:
+        factoryObjectName: Neos\Flow\Cache\CacheManager
+        factoryMethodName: getCache
+        arguments:
+          1:
+            value: Neos_Fusion_FilesObjectTree

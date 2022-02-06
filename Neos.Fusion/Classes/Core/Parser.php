@@ -13,7 +13,9 @@ namespace Neos\Fusion\Core;
  * source code.
  */
 
+use Neos\Cache\Frontend\VariableFrontend;
 use Neos\Fusion;
+use Neos\Fusion\Core\ObjectTreeParser\Ast\FusionFileAst;
 use Neos\Fusion\Core\ObjectTreeParser\FilePatternResolver;
 use Neos\Fusion\Core\ObjectTreeParser\Lexer;
 use Neos\Fusion\Core\ObjectTreeParser\ObjectTree;
@@ -37,6 +39,11 @@ class Parser implements ParserInterface
     public static $reservedParseTreeKeys = ParserInterface::RESERVED_PARSE_TREE_KEYS;
 
     /**
+     * @var VariableFrontend
+     */
+    protected $fusionFilesObjectTreeCache;
+
+    /**
      * @Flow\Inject
      * @var DslFactory
      */
@@ -55,8 +62,7 @@ class Parser implements ParserInterface
      */
     public function parse(string $sourceCode, ?string $contextPathAndFilename = null, array $objectTreeUntilNow = []): array
     {
-        $lexer = new Lexer($sourceCode);
-        $fusionFileAst = (new PredictiveParser($lexer, $contextPathAndFilename))->parse();
+        $fusionFileAst = $this->getFusionFileAst($sourceCode, $contextPathAndFilename);
 
         $objectTree = new ObjectTree();
         $objectTree->setObjectTree($objectTreeUntilNow);
@@ -68,10 +74,27 @@ class Parser implements ParserInterface
         return $objectTree->getObjectTree();
     }
 
+
+    protected function getFusionFileAst(string $sourceCode, ?string $contextPathAndFilename): FusionFileAst
+    {
+        if ($useCache = ($contextPathAndFilename !== null)) {
+            $cacheIdentifier = md5($contextPathAndFilename);
+            if ($this->fusionFilesObjectTreeCache->has($cacheIdentifier)) {
+                return $this->fusionFilesObjectTreeCache->get($cacheIdentifier);
+            }
+        }
+        $lexer = new Lexer($sourceCode);
+        $fusionFileAst = (new PredictiveParser($lexer, $contextPathAndFilename))->parse();
+        if ($useCache) {
+            $this->fusionFilesObjectTreeCache->set($cacheIdentifier, $fusionFileAst);
+        }
+        return $fusionFileAst;
+    }
+
     /**
      * @internal Exposed to be testable and easily transformable to closure.
      */
-    public function handleFileInclude(ObjectTree $objectTree, string $filePattern, ?string $contextPathAndFilename): ObjectTree
+    public function handleFileInclude(ObjectTree $objectTree, string $filePattern, ?string $contextPathAndFilename): void
     {
         $filesToInclude = FilePatternResolver::resolveFilesByPattern($filePattern, $contextPathAndFilename, '.fusion');
         foreach ($filesToInclude as $file) {
@@ -82,14 +105,11 @@ class Parser implements ParserInterface
             if ($contextPathAndFilename === null
                 || stat($contextPathAndFilename) !== stat($file)) {
 
-                $lexer = new Lexer(file_get_contents($file));
-
-                $fusionFileAst = (new PredictiveParser($lexer, $file))->parse();
+                $fusionFileAst = $this->getFusionFileAst(file_get_contents($file), $file);
 
                 (new ObjectTreeAstVisitor($objectTree, [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']))->visitFusionFileAst($fusionFileAst);
             }
         }
-        return $objectTree;
     }
 
     /**
@@ -97,6 +117,12 @@ class Parser implements ParserInterface
      */
     public function handleDslTranspile(string $identifier, string $code)
     {
+//        // TODO invalidate cache, when dsls are changed.
+        $cacheIdentifier = md5($identifier . $code);
+        if ($this->fusionFilesObjectTreeCache->has($cacheIdentifier)) {
+            return $this->fusionFilesObjectTreeCache->get($cacheIdentifier);
+        }
+
         $dslObject = $this->dslFactory->create($identifier);
 
         try {
@@ -114,6 +140,9 @@ class Parser implements ParserInterface
         $objectTree = (new ObjectTreeAstVisitor(new ObjectTree(), [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']))->visitFusionFileAst($fusionFileAst);
 
         $temporaryAst = $objectTree->getObjectTree();
-        return $temporaryAst['value'];
+
+        $dslValue = $temporaryAst['value'];
+        $this->fusionFilesObjectTreeCache->set($cacheIdentifier, $dslValue);
+        return $dslValue;
     }
 }
