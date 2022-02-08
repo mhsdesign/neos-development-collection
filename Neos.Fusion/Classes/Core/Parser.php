@@ -67,13 +67,16 @@ class Parser implements ParserInterface
         $objectTree = new ObjectTree();
         $objectTree->setObjectTree($objectTreeUntilNow);
 
-        $objectTreeBuilder = new ObjectTreeAstVisitor($objectTree, [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']);
-        $objectTree = $objectTreeBuilder->visitFusionFileAst($fusionFileAst);
+        $objectTree = $this->getObjectTreeAstVisitor($objectTree)->visitFusionFileAst($fusionFileAst);
 
         $objectTree->buildPrototypeHierarchy();
         return $objectTree->getObjectTree();
     }
 
+    protected function getObjectTreeAstVisitor(ObjectTree $objectTree): ObjectTreeAstVisitor
+    {
+        return new ObjectTreeAstVisitor($objectTree, [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']);
+    }
 
     protected function getFusionFileAst(string $sourceCode, ?string $contextPathAndFilename): FusionFileAst
     {
@@ -106,8 +109,7 @@ class Parser implements ParserInterface
                 || stat($contextPathAndFilename) !== stat($file)) {
 
                 $fusionFileAst = $this->getFusionFileAst(file_get_contents($file), $file);
-
-                (new ObjectTreeAstVisitor($objectTree, [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']))->visitFusionFileAst($fusionFileAst);
+                $this->getObjectTreeAstVisitor($objectTree)->visitFusionFileAst($fusionFileAst);
             }
         }
     }
@@ -117,7 +119,7 @@ class Parser implements ParserInterface
      */
     public function handleDslTranspile(string $identifier, string $code)
     {
-//        // TODO invalidate cache, when dsls are changed.
+//        // TODO invalidate cache, when dsls are changed. Also remove cache entries - maybe tag them with fusion main file name...
         $cacheIdentifier = md5($identifier . $code);
         if ($this->fusionFilesObjectTreeCache->has($cacheIdentifier)) {
             return $this->fusionFilesObjectTreeCache->get($cacheIdentifier);
@@ -133,11 +135,17 @@ class Parser implements ParserInterface
             throw $e;
         }
 
-        $lexer = new Lexer('value = ' . $transpiledFusion);
-        $parser = new PredictiveParser($lexer);
-        $fusionFileAst = $parser->parse();
+//        $cacheIdentifier = md5($identifier . $code);
+//        if ($this->fusionFilesObjectTreeCache->has($cacheIdentifier)) {
+//            $fusionFileAst = $this->fusionFilesObjectTreeCache->get($cacheIdentifier);
+//        } else {
+            $lexer = new Lexer('value = ' . $transpiledFusion);
+            $parser = new PredictiveParser($lexer);
+            $fusionFileAst = $parser->parse();
+//            $this->fusionFilesObjectTreeCache->set($cacheIdentifier, $fusionFileAst);
+//        }
 
-        $objectTree = (new ObjectTreeAstVisitor(new ObjectTree(), [$this, 'handleFileInclude'], [$this, 'handleDslTranspile']))->visitFusionFileAst($fusionFileAst);
+        $objectTree = $this->getObjectTreeAstVisitor(new ObjectTree())->visitFusionFileAst($fusionFileAst);
 
         $temporaryAst = $objectTree->getObjectTree();
 

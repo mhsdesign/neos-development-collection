@@ -27,6 +27,16 @@ class FusionCachingAspect
      */
     protected $fusionCache;
 
+//    /**
+//     * @Flow\Before("method(Neos\Fusion\Core\Parser->getFusionFileAst())")
+//     * @param JoinPointInterface $joinPoint The current join point
+//     */
+//    public function lolst(JoinPointInterface $joinPoint)
+//    {
+//        echo $joinPoint->getMethodArgument('contextPathAndFilename') . "\n";
+//    }
+
+
     /**
      * @Flow\Around("setting(Neos.Fusion.enableObjectTreeCache) && method(Neos\Fusion\View\FusionView->getMergedFusionObjectTree())")
      * @param JoinPointInterface $joinPoint The current join point

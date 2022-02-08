@@ -16,6 +16,7 @@ use Neos\ContentRepository\Domain\Service\NodeTypeManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Mvc\Controller\ControllerContext;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
+use Neos\Fusion\Core\ParserNew;
 use Neos\Neos\Domain\Model\Site;
 use Neos\Neos\Domain\Repository\SiteRepository;
 use Neos\Utility\Files;
@@ -147,7 +148,7 @@ class FusionService
         $mergedFusionCode .= $siteRootFusionCode;
         $mergedFusionCode .= $this->getFusionIncludes($this->appendFusionIncludes);
 
-        return $this->fusionParser->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
+        return (new ParserNew())->parse($mergedFusionCode, $siteRootFusionPathAndFilename);
     }
 
     /**
