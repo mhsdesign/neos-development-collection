@@ -117,6 +117,8 @@ class Lexer
 
     protected string $code = '';
 
+    protected string $cursorCode = '';
+
     protected int $codeLen = 0;
 
     protected int $cursor = 0;
@@ -125,9 +127,10 @@ class Lexer
 
     public function __construct(string $code)
     {
-        $code = str_replace(["\r\n", "\r"], "\n", $code);
+        $code = \str_replace(["\r\n", "\r"], "\n", $code);
         $this->code = $code;
-        $this->codeLen = strlen($code);
+        $this->cursorCode = $code;
+        $this->codeLen = \strlen($code);
     }
 
     public function getCode(): string
@@ -161,13 +164,13 @@ class Lexer
 
         $regexForToken = self::TOKEN_REGEX[$tokenType];
 
-        $remainingCode = substr($this->code, $this->cursor);
-
-        if (preg_match($regexForToken, $remainingCode, $matches) !== 1) {
+        if (\preg_match($regexForToken, $this->cursorCode, $matches) !== 1) {
             return null;
         }
 
-        $this->cursor += \strlen($matches[0]);
+        $advance = \strlen($matches[0]);
+        $this->cursor += $advance;
+        $this->cursorCode = \substr($this->cursorCode, $advance);
 
         return $this->lookahead = new Token($tokenType, $matches[0]);
     }

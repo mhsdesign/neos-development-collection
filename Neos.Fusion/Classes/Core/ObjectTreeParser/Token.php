@@ -15,6 +15,7 @@ namespace Neos\Fusion\Core\ObjectTreeParser;
 
 use Neos\Flow\Annotations as Flow;
 
+#[Flow\Proxy(false)]
 class Token
 {
     public const EOF = 1;
@@ -79,6 +80,7 @@ class Token
 
     /**
      * Returns the constant representation of a given type.
+     * Only to be used for exception messages, as uncached reflection is used.
      *
      * @param int $type The type as an integer
      *
@@ -87,20 +89,11 @@ class Token
      */
     public static function typeToString(int $type): string
     {
-        $stringRepresentation = array_search($type, static::getConstants(), true);
+        $stringRepresentation = array_search($type, (new \ReflectionClass(self::class))->getConstants(), true);
 
         if ($stringRepresentation === false) {
             throw new \LogicException("Token of type '$type' does not exist", 1637307344);
         }
         return $stringRepresentation;
-    }
-
-    /**
-     * @Flow\CompileStatic
-     */
-    protected static function getConstants()
-    {
-        $reflection = new \ReflectionClass(self::class);
-        return $reflection->getConstants();
     }
 }
