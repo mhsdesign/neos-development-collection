@@ -91,7 +91,7 @@ class ObjectTreeParser
         if ($token === null) {
             return false;
         }
-        return $token->getType() === $tokenType;
+        return $token->type === $tokenType;
     }
 
     /**
@@ -106,7 +106,7 @@ class ObjectTreeParser
     protected function expect(int $tokenType): Token
     {
         $token = $this->lexer->getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead($tokenType);
-        if ($token === null || $token->getType() !== $tokenType) {
+        if ($token === null || $token->type !== $tokenType) {
             $tokenReadable = Token::typeToString($tokenType);
             throw new ParserUnexpectedCharException("Expected token: '$tokenReadable'.", 1646988824);
         }
@@ -121,7 +121,7 @@ class ObjectTreeParser
     protected function lazyExpect(int $tokenType): ?bool
     {
         $token = $this->lexer->getCachedLookaheadOrTryToGenerateLookaheadForTokenAndGetLookahead($tokenType);
-        if ($token === null || $token->getType() !== $tokenType) {
+        if ($token === null || $token->type !== $tokenType) {
             return false;
         }
         $this->lexer->consumeLookahead();
@@ -254,11 +254,11 @@ class ObjectTreeParser
         switch (true) {
             case $this->accept(Token::STRING_DOUBLE_QUOTED):
             case $this->accept(Token::STRING_SINGLE_QUOTED):
-                $stringWrapped = $this->consume()->getValue();
+                $stringWrapped = $this->consume()->value;
                 $filePattern = substr($stringWrapped, 1, -1);
                 break;
             case $this->accept(Token::FILE_PATTERN):
-                $filePattern = $this->consume()->getValue();
+                $filePattern = $this->consume()->value;
                 break;
             default:
                 throw new ParserUnexpectedCharException('Expected file pattern in quotes or [a-zA-Z0-9.*:/_-]', 1646988832);
@@ -329,7 +329,7 @@ class ObjectTreeParser
             case $this->accept(Token::PROTOTYPE_START):
                 $this->consume();
                 try {
-                    $prototypeName = $this->expect(Token::FUSION_OBJECT_NAME)->getValue();
+                    $prototypeName = $this->expect(Token::FUSION_OBJECT_NAME)->value;
                 } catch (Fusion\Exception) {
                     throw $this->prepareParserException(new ParserException())
                         ->setCode(1646991578)
@@ -340,17 +340,17 @@ class ObjectTreeParser
                 return new PrototypePathSegment($prototypeName);
 
             case $this->accept(Token::OBJECT_PATH_PART):
-                $pathKey = $this->consume()->getValue();
+                $pathKey = $this->consume()->value;
                 return new PathSegment($pathKey);
 
             case $this->accept(Token::META_PATH_START):
                 $this->consume();
-                $metaPathSegmentKey = $this->expect(Token::OBJECT_PATH_PART)->getValue();
+                $metaPathSegmentKey = $this->expect(Token::OBJECT_PATH_PART)->value;
                 return new MetaPathSegment($metaPathSegmentKey);
 
             case $this->accept(Token::STRING_DOUBLE_QUOTED):
             case $this->accept(Token::STRING_SINGLE_QUOTED):
-                $stringWrapped = $this->consume()->getValue();
+                $stringWrapped = $this->consume()->value;
                 $quotedPathKey = substr($stringWrapped, 1, -1);
                 return new PathSegment($quotedPathKey);
         }
@@ -383,31 +383,31 @@ class ObjectTreeParser
         // sorted by likelihood
         switch (true) {
             case $this->accept(Token::STRING_SINGLE_QUOTED):
-                $charWrapped = $this->consume()->getValue();
+                $charWrapped = $this->consume()->value;
                 $stringContent = substr($charWrapped, 1, -1);
                 return new StringValue(stripslashes($stringContent));
 
             case $this->accept(Token::STRING_DOUBLE_QUOTED):
-                $stringWrapped = $this->consume()->getValue();
+                $stringWrapped = $this->consume()->value;
                 $stringContent = substr($stringWrapped, 1, -1);
                 return new StringValue(stripcslashes($stringContent));
 
             case $this->accept(Token::FUSION_OBJECT_NAME):
-                return new FusionObjectValue($this->consume()->getValue());
+                return new FusionObjectValue($this->consume()->value);
 
             case $this->accept(Token::DSL_EXPRESSION_START):
                 return $this->parseDslExpression();
 
             case $this->accept(Token::EEL_EXPRESSION):
-                $eelWrapped = $this->consume()->getValue();
+                $eelWrapped = $this->consume()->value;
                 $eelContent = substr($eelWrapped, 2, -1);
                 return new EelExpressionValue($eelContent);
 
             case $this->accept(Token::FLOAT):
-                return new FloatValue((float)$this->consume()->getValue());
+                return new FloatValue((float)$this->consume()->value);
 
             case $this->accept(Token::INTEGER):
-                return new IntValue((int)$this->consume()->getValue());
+                return new IntValue((int)$this->consume()->value);
 
             case $this->accept(Token::TRUE_VALUE):
                 $this->consume();
@@ -434,9 +434,9 @@ class ObjectTreeParser
      */
     protected function parseDslExpression(): DslExpressionValue
     {
-        $dslIdentifier = $this->expect(Token::DSL_EXPRESSION_START)->getValue();
+        $dslIdentifier = $this->expect(Token::DSL_EXPRESSION_START)->value;
         try {
-            $dslCode = $this->expect(Token::DSL_EXPRESSION_CONTENT)->getValue();
+            $dslCode = $this->expect(Token::DSL_EXPRESSION_CONTENT)->value;
         } catch (Fusion\Exception) {
             throw $this->prepareParserException(new ParserException())
                 ->setCode(1490714685)

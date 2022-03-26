@@ -117,7 +117,6 @@ class Lexer
 
     protected string $code = '';
 
-    protected string $cursorCode = '';
 
     protected int $codeLen = 0;
 
@@ -129,7 +128,6 @@ class Lexer
     {
         $code = \str_replace(["\r\n", "\r"], "\n", $code);
         $this->code = $code;
-        $this->cursorCode = $code;
         $this->codeLen = \strlen($code);
     }
 
@@ -164,14 +162,19 @@ class Lexer
 
         $regexForToken = self::TOKEN_REGEX[$tokenType];
 
-        if (\preg_match($regexForToken, $this->cursorCode, $matches) !== 1) {
+        $cursorCode = \substr($this->code, $this->cursor, 10000);
+
+        if (\preg_match($regexForToken, $cursorCode, $matches) !== 1) {
             return null;
         }
 
         $advance = \strlen($matches[0]);
         $this->cursor += $advance;
-        $this->cursorCode = \substr($this->cursorCode, $advance);
+//        $this->cursorCode = \substr($this->code, $this->cursor, 10000);
 
+//        if ($this->codeChunks !== [] && \strlen($this->cursorCode) <= 5000) {
+//            $this->cursorCode .= array_shift($this->codeChunks);
+//        }
         return $this->lookahead = new Token($tokenType, $matches[0]);
     }
 }

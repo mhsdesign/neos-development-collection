@@ -63,19 +63,9 @@ class Token
     public const RBRACE = 31;
 
     public function __construct(
-        protected int $type,
-        protected string $value,
+        public int $type,
+        public string $value,
     ) {
-    }
-
-    public function getType(): int
-    {
-        return $this->type;
-    }
-
-    public function getValue(): string
-    {
-        return $this->value;
     }
 
     /**
