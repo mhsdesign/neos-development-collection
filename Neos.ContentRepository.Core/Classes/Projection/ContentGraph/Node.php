@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace Neos\ContentRepository\Core\Projection\ContentGraph;
 
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
+use Neos\ContentRepository\Core\SharedModel\Node\NodeIdentity;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeName;
 use Neos\ContentRepository\Core\DimensionSpace\OriginDimensionSpacePoint;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateClassification;
@@ -33,6 +34,8 @@ use Neos\ContentRepository\Core\NodeType\NodeTypeName;
  * $subgraphIdentity {@see Node::$subgraphIdentity}. and then
  * call findChildNodes() {@see ContentSubgraphInterface::findChildNodes()}
  * on the subgraph.
+ *
+ * The identity of a node is summarized here {@see NodeIdentity}
  *
  * @api Note: The constructor is not part of the public API
  */
