@@ -6,19 +6,20 @@ namespace Neos\ContentRepository\Core\SharedModel\Node;
 
 use Neos\ContentRepository\Core\DimensionSpace\DimensionSpacePoint;
 use Neos\ContentRepository\Core\Factory\ContentRepositoryId;
-use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
 
 /**
  * The content-repository-id content-stream-id dimension-space-point and the node-aggregate-id
  * Are used in combination to distinctly identify a single node.
  *
- * By using getting the content graph for the content-repository-id,
- * one can build a subgraph with the perspective to find this node:
+ * By using the content graph for the content repository
+ * one can build a subgraph with the right perspective to find this node:
  *
- *      $subgraph = $contentgraph->getSubgraph(
- *          $nodeIdentity->contentStreamId,
+ *      $workspace = $contentRepository->getWorkspaceFinder()->findOneByName($identity->workspaceName);
+ *      $subgraph = $contentGraph->getSubgraph(
+ *          $workspace->currentContentStreamId,
  *          $nodeIdentity->dimensionSpacePoint,
- *          // show all disabled nodes
+ *          // resolve also all disabled nodes
  *          VisibilityConstraints::withoutRestrictions()
  *      );
  *      $node = $subgraph->findNodeById($nodeIdentity->nodeAggregateId);
@@ -27,12 +28,21 @@ use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
  */
 final readonly class NodeIdentity implements \JsonSerializable
 {
-    public function __construct(
+    private function __construct(
         public ContentRepositoryId $contentRepositoryId,
-        public ContentStreamId $contentStreamId,
+        public WorkspaceName $workspaceName,
         public DimensionSpacePoint $dimensionSpacePoint,
         public NodeAggregateId $nodeAggregateId,
     ) {
+    }
+
+    public static function create(
+        ContentRepositoryId $contentRepositoryId,
+        WorkspaceName $workspaceName,
+        DimensionSpacePoint $dimensionSpacePoint,
+        NodeAggregateId $nodeAggregateId,
+    ) {
+        return new self($contentRepositoryId, $workspaceName, $dimensionSpacePoint, $nodeAggregateId);
     }
 
     /**
@@ -42,17 +52,27 @@ final readonly class NodeIdentity implements \JsonSerializable
     {
         return new self(
             ContentRepositoryId::fromString($array['contentRepositoryId']),
-            ContentStreamId::fromString($array['contentStreamId']),
+            WorkspaceName::fromString($array['workspaceName']),
             DimensionSpacePoint::fromArray($array['dimensionSpacePoint']),
             NodeAggregateId::fromString($array['nodeAggregateId'])
         );
+    }
+
+    public static function fromJsonString(string $jsonString): self
+    {
+        return self::fromArray(\json_decode($jsonString, true, JSON_THROW_ON_ERROR));
+    }
+
+    public function toJson(): string
+    {
+        return json_encode($this, JSON_THROW_ON_ERROR);
     }
 
     public function jsonSerialize(): mixed
     {
         return [
             'contentRepositoryId' => $this->contentRepositoryId,
-            'contentStreamId' => $this->contentStreamId,
+            'workspaceName' => $this->workspaceName,
             'dimensionSpacePoint' => $this->dimensionSpacePoint,
             'nodeAggregateId' => $this->nodeAggregateId
         ];
