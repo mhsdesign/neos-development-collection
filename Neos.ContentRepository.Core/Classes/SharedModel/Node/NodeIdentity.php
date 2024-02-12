@@ -41,7 +41,7 @@ final readonly class NodeIdentity implements \JsonSerializable
         WorkspaceName $workspaceName,
         DimensionSpacePoint $dimensionSpacePoint,
         NodeAggregateId $nodeAggregateId,
-    ) {
+    ): self {
         return new self($contentRepositoryId, $workspaceName, $dimensionSpacePoint, $nodeAggregateId);
     }
 
