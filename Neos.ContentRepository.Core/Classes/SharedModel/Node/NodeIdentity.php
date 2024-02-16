@@ -63,6 +63,19 @@ final readonly class NodeIdentity implements \JsonSerializable
         return self::fromArray(\json_decode($jsonString, true, JSON_THROW_ON_ERROR));
     }
 
+    public function withNodeAggregateId(NodeAggregateId $nodeAggregateId): self
+    {
+        return new self($this->contentRepositoryId, $this->workspaceName, $this->dimensionSpacePoint, $nodeAggregateId);
+    }
+
+    public function equals(self $other): bool
+    {
+        return $this->contentRepositoryId->equals($other->contentRepositoryId)
+            && $this->workspaceName->equals($other->workspaceName)
+            && $this->dimensionSpacePoint->equals($other->dimensionSpacePoint)
+            && $this->nodeAggregateId->equals($other->nodeAggregateId);
+    }
+
     public function toJson(): string
     {
         return json_encode($this, JSON_THROW_ON_ERROR);
