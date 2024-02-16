@@ -22,12 +22,12 @@ final readonly class NodeSerializer
     ) {
     }
 
-    public function denormalizeNodeFromIdentity(NodeIdentity $identity): Node
+    public function findNodeByIdentity(NodeIdentity $identity): Node
     {
         $contentRepository = $this->contentRepositoryRegistry->get($identity->contentRepositoryId);
         $workspace = $contentRepository->getWorkspaceFinder()->findOneByName($identity->workspaceName);
         if (!$workspace) {
-            throw new \RuntimeException(sprintf('Workspace could not be found while deserializing node NodeIdentity<%s>.', json_encode($identity, JSON_PARTIAL_OUTPUT_ON_ERROR)), 1707757488);
+            throw new \RuntimeException(sprintf('Workspace could not be found while fetching NodeIdentity<%s>.', json_encode($identity, JSON_PARTIAL_OUTPUT_ON_ERROR)), 1707757488);
         }
         $subgraph = $contentRepository->getContentGraph()->getSubgraph(
             $workspace->currentContentStreamId,
@@ -37,12 +37,12 @@ final readonly class NodeSerializer
         );
         $node = $subgraph->findNodeById($identity->nodeAggregateId);
         if (!$node) {
-            throw new \RuntimeException(sprintf('NodeAggregateId could not be found while deserializing node NodeIdentity<%s>.', json_encode($identity, JSON_PARTIAL_OUTPUT_ON_ERROR)), 1707772263);
+            throw new \RuntimeException(sprintf('NodeAggregateId could not be found while fetching NodeIdentity<%s>.', json_encode($identity, JSON_PARTIAL_OUTPUT_ON_ERROR)), 1707772263);
         }
         return $node;
     }
 
-    public function normalizeNodeToIdentity(Node $node): NodeIdentity
+    public function convertNodeToIdentity(Node $node): NodeIdentity
     {
         $contentRepository = $this->contentRepositoryRegistry->get($node->subgraphIdentity->contentRepositoryId);
         $workspace = $contentRepository->getWorkspaceFinder()->findOneByCurrentContentStreamId($node->subgraphIdentity->contentStreamId);
