@@ -6,6 +6,7 @@ namespace Neos\ContentRepository\Core\SharedModel\Node;
 
 use Neos\ContentRepository\Core\DimensionSpace\DimensionSpacePoint;
 use Neos\ContentRepository\Core\Factory\ContentRepositoryId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
 use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
 
 /**
@@ -30,7 +31,7 @@ final readonly class NodeIdentity implements \JsonSerializable
 {
     private function __construct(
         public ContentRepositoryId $contentRepositoryId,
-        public WorkspaceName $workspaceName,
+        public WorkspaceName|DetachedWorkspaceName $workspaceName,
         public DimensionSpacePoint $dimensionSpacePoint,
         public NodeAggregateId $nodeAggregateId,
     ) {
@@ -38,7 +39,7 @@ final readonly class NodeIdentity implements \JsonSerializable
 
     public static function create(
         ContentRepositoryId $contentRepositoryId,
-        WorkspaceName $workspaceName,
+        WorkspaceName|DetachedWorkspaceName $workspaceName,
         DimensionSpacePoint $dimensionSpacePoint,
         NodeAggregateId $nodeAggregateId,
     ): self {
@@ -52,7 +53,8 @@ final readonly class NodeIdentity implements \JsonSerializable
     {
         return new self(
             ContentRepositoryId::fromString($array['contentRepositoryId']),
-            WorkspaceName::fromString($array['workspaceName']),
+            DetachedWorkspaceName::tryFromString($array['workspaceName'])
+                ?? WorkspaceName::fromString($array['workspaceName']),
             DimensionSpacePoint::fromArray($array['dimensionSpacePoint']),
             NodeAggregateId::fromString($array['nodeAggregateId'])
         );
