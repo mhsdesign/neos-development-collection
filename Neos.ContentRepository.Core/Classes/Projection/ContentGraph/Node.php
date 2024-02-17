@@ -53,6 +53,8 @@ final readonly class Node
      * @param Timestamps $timestamps Creation and modification timestamps of this node
      */
     private function __construct(
+        public NodeIdentity $identity,
+        /** @deprecated will be removed */
         public ContentSubgraphIdentity $subgraphIdentity,
         public NodeAggregateId $nodeAggregateId,
         public OriginDimensionSpacePoint $originDimensionSpacePoint,
@@ -71,9 +73,9 @@ final readonly class Node
     /**
      * @internal The signature of this method can change in the future!
      */
-    public static function create(ContentSubgraphIdentity $subgraphIdentity, NodeAggregateId $nodeAggregateId, OriginDimensionSpacePoint $originDimensionSpacePoint, NodeAggregateClassification $classification, NodeTypeName $nodeTypeName, ?NodeType $nodeType, PropertyCollection $properties, ?NodeName $nodeName, Timestamps $timestamps): self
+    public static function create(NodeIdentity $identity, ContentSubgraphIdentity $subgraphIdentity, NodeAggregateId $nodeAggregateId, OriginDimensionSpacePoint $originDimensionSpacePoint, NodeAggregateClassification $classification, NodeTypeName $nodeTypeName, ?NodeType $nodeType, PropertyCollection $properties, ?NodeName $nodeName, Timestamps $timestamps): self
     {
-        return new self($subgraphIdentity, $nodeAggregateId, $originDimensionSpacePoint, $classification, $nodeTypeName, $nodeType, $properties, $nodeName, $timestamps);
+        return new self($identity, $subgraphIdentity, $nodeAggregateId, $originDimensionSpacePoint, $classification, $nodeTypeName, $nodeType, $properties, $nodeName, $timestamps);
     }
 
     /**

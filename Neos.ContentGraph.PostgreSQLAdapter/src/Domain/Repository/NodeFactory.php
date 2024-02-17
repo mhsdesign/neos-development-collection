@@ -23,6 +23,7 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\References;
 use Neos\ContentRepository\Core\Projection\ContentGraph\Subtree;
 use Neos\ContentRepository\Core\Projection\ContentGraph\Timestamps;
 use Neos\ContentRepository\Core\SharedModel\Exception\NodeTypeNotFoundException;
+use Neos\ContentRepository\Core\SharedModel\Node\NodeIdentity;
 use Neos\ContentRepository\Core\SharedModel\Node\ReferenceName;
 use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
@@ -41,6 +42,7 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\Nodes;
 use Neos\ContentRepository\Core\Projection\ContentGraph\PropertyCollection;
 use Neos\ContentRepository\Core\Feature\NodeModification\Dto\SerializedPropertyValues;
 use Neos\ContentRepository\Core\Infrastructure\Property\PropertyConverter;
+use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
 
 /**
  * The node factory for mapping database rows to nodes and node aggregates
@@ -76,6 +78,15 @@ final class NodeFactory
             : null;
 
         return Node::create(
+            NodeIdentity::create(
+                $this->contentRepositoryId,
+                // todo use "real" WorkspaceName if available.
+                DetachedWorkspaceName::fromContentStreamId(
+                    $contentStreamId ?: ContentStreamId::fromString($nodeRow['contentstreamid'])
+                ),
+                $dimensionSpacePoint ?: DimensionSpacePoint::fromJsonString($nodeRow['dimensionspacepoint']),
+                NodeAggregateId::fromString($nodeRow['nodeaggregateid'])
+            ),
             ContentSubgraphIdentity::create(
                 $this->contentRepositoryId,
                 $contentStreamId ?: ContentStreamId::fromString($nodeRow['contentstreamid']),

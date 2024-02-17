@@ -23,6 +23,7 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\Reference;
 use Neos\ContentRepository\Core\Projection\ContentGraph\References;
 use Neos\ContentRepository\Core\Projection\ContentGraph\Timestamps;
 use Neos\ContentRepository\Core\NodeType\NodeTypeManager;
+use Neos\ContentRepository\Core\SharedModel\Node\NodeIdentity;
 use Neos\ContentRepository\Core\SharedModel\Node\ReferenceName;
 use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
@@ -40,6 +41,7 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\Node;
 use Neos\ContentRepository\Core\Projection\ContentGraph\PropertyCollection;
 use Neos\ContentRepository\Core\Feature\NodeModification\Dto\SerializedPropertyValues;
 use Neos\ContentRepository\Core\Infrastructure\Property\PropertyConverter;
+use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
 
 /**
  * Implementation detail of ContentGraph and ContentSubgraph
@@ -68,6 +70,15 @@ final class NodeFactory
             : null;
 
         return Node::create(
+            NodeIdentity::create(
+                $this->contentRepositoryId,
+                // todo use "real" WorkspaceName if available.
+                DetachedWorkspaceName::fromContentStreamId(
+                    ContentStreamId::fromString($nodeRow['contentstreamid'])
+                ),
+                $dimensionSpacePoint,
+                NodeAggregateId::fromString($nodeRow['nodeaggregateid'])
+            ),
             ContentSubgraphIdentity::create(
                 $this->contentRepositoryId,
                 ContentStreamId::fromString($nodeRow['contentstreamid']),
