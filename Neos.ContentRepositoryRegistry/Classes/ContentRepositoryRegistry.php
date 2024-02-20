@@ -77,9 +77,8 @@ final class ContentRepositoryRegistry
     public function subgraphForNode(Node $node): ContentSubgraphInterface
     {
         $contentRepository = $this->get($node->subgraphIdentity->contentRepositoryId);
-        return $contentRepository->getContentGraph()->getSubgraph(
-            $node->subgraphIdentity->contentStreamId,
-            $node->subgraphIdentity->dimensionSpacePoint,
+        return $contentRepository->getSubgraph(
+            $node->identity,
             $node->subgraphIdentity->visibilityConstraints
         );
     }

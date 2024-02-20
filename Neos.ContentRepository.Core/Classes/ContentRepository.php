@@ -31,6 +31,8 @@ use Neos\ContentRepository\Core\NodeType\NodeTypeManager;
 use Neos\ContentRepository\Core\Projection\CatchUp;
 use Neos\ContentRepository\Core\Projection\CatchUpOptions;
 use Neos\ContentRepository\Core\Projection\ContentGraph\ContentGraphInterface;
+use Neos\ContentRepository\Core\Projection\ContentGraph\ContentSubgraphInterface;
+use Neos\ContentRepository\Core\Projection\ContentGraph\VisibilityConstraints;
 use Neos\ContentRepository\Core\Projection\ContentStream\ContentStreamFinder;
 use Neos\ContentRepository\Core\Projection\ProjectionInterface;
 use Neos\ContentRepository\Core\Projection\ProjectionsAndCatchUpHooks;
@@ -38,7 +40,9 @@ use Neos\ContentRepository\Core\Projection\ProjectionStateInterface;
 use Neos\ContentRepository\Core\Projection\ProjectionStatuses;
 use Neos\ContentRepository\Core\Projection\Workspace\WorkspaceFinder;
 use Neos\ContentRepository\Core\SharedModel\ContentRepository\ContentRepositoryStatus;
+use Neos\ContentRepository\Core\SharedModel\Node\NodeIdentity;
 use Neos\ContentRepository\Core\SharedModel\User\UserIdProviderInterface;
+use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
 use Neos\EventStore\EventStoreInterface;
 use Neos\EventStore\Model\Event\EventMetadata;
 use Neos\EventStore\Model\EventEnvelope;
@@ -227,6 +231,26 @@ final class ContentRepository
     {
         $projection = $this->projectionsAndCatchUpHooks->projections->get($projectionClassName);
         $projection->reset();
+    }
+
+    public function getSubgraph(NodeIdentity $nodeIdentity, VisibilityConstraints $visibilityConstraints): ContentSubgraphInterface
+    {
+        if ($nodeIdentity->workspaceName instanceof DetachedWorkspaceName) {
+            return $this->getContentGraph()->getSubgraph(
+                $nodeIdentity->workspaceName->contentStreamId,
+                $nodeIdentity->dimensionSpacePoint,
+                $visibilityConstraints
+            );
+        }
+        $workspace = $this->getWorkspaceFinder()->findOneByName($nodeIdentity->workspaceName);
+        if (!$workspace) {
+            throw new \RuntimeException(sprintf('Workspace could not be found while for NodeIdentity<%s>.', json_encode($nodeIdentity, JSON_PARTIAL_OUTPUT_ON_ERROR)), 1708431634);
+        }
+        return $this->getContentGraph()->getSubgraph(
+            $workspace,
+            $nodeIdentity->dimensionSpacePoint,
+            $visibilityConstraints
+        );
     }
 
     public function getNodeTypeManager(): NodeTypeManager
