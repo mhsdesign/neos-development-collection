@@ -42,6 +42,7 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\PropertyCollection;
 use Neos\ContentRepository\Core\Feature\NodeModification\Dto\SerializedPropertyValues;
 use Neos\ContentRepository\Core\Infrastructure\Property\PropertyConverter;
 use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
+use Neos\ContentRepository\Core\SharedModel\Workspace\WorkspaceName;
 
 /**
  * Implementation detail of ContentGraph and ContentSubgraph
@@ -63,7 +64,8 @@ final class NodeFactory
     public function mapNodeRowToNode(
         array $nodeRow,
         DimensionSpacePoint $dimensionSpacePoint,
-        VisibilityConstraints $visibilityConstraints
+        VisibilityConstraints $visibilityConstraints,
+        ?WorkspaceName $workspaceName,
     ): Node {
         $nodeType = $this->nodeTypeManager->hasNodeType($nodeRow['nodetypename'])
             ? $this->nodeTypeManager->getNodeType($nodeRow['nodetypename'])
@@ -72,8 +74,7 @@ final class NodeFactory
         return Node::create(
             NodeIdentity::create(
                 $this->contentRepositoryId,
-                // todo use "real" WorkspaceName if available.
-                DetachedWorkspaceName::fromContentStreamId(
+                $workspaceName ?? DetachedWorkspaceName::fromContentStreamId(
                     ContentStreamId::fromString($nodeRow['contentstreamid'])
                 ),
                 $dimensionSpacePoint,
@@ -104,10 +105,10 @@ final class NodeFactory
     /**
      * @param array<int, array<string, mixed>> $nodeRows
      */
-    public function mapNodeRowsToNodes(array $nodeRows, DimensionSpacePoint $dimensionSpacePoint, VisibilityConstraints $visibilityConstraints): Nodes
+    public function mapNodeRowsToNodes(array $nodeRows, DimensionSpacePoint $dimensionSpacePoint, VisibilityConstraints $visibilityConstraints, ?WorkspaceName $workspaceName): Nodes
     {
         return Nodes::fromArray(
-            array_map(fn (array $nodeRow) => $this->mapNodeRowToNode($nodeRow, $dimensionSpacePoint, $visibilityConstraints), $nodeRows)
+            array_map(fn (array $nodeRow) => $this->mapNodeRowToNode($nodeRow, $dimensionSpacePoint, $visibilityConstraints, $workspaceName), $nodeRows)
         );
     }
 
@@ -132,7 +133,8 @@ final class NodeFactory
             $node = $this->mapNodeRowToNode(
                 $nodeRow,
                 $dimensionSpacePoint,
-                $visibilityConstraints
+                $visibilityConstraints,
+                null // todo
             );
             $result[] = new Reference(
                 $node,
@@ -180,7 +182,8 @@ final class NodeFactory
                 $nodesByOccupiedDimensionSpacePoints[$occupiedDimensionSpacePoint->hash] = $this->mapNodeRowToNode(
                     $nodeRow,
                     $occupiedDimensionSpacePoint->toDimensionSpacePoint(),
-                    $visibilityConstraints
+                    $visibilityConstraints,
+                    null // todo
                 );
                 $occupiedDimensionSpacePoints[] = $occupiedDimensionSpacePoint;
                 $rawNodeAggregateId = $rawNodeAggregateId ?: $nodeRow['nodeaggregateid'];
@@ -262,7 +265,8 @@ final class NodeFactory
                     [$rawNodeAggregateId][$occupiedDimensionSpacePoint->hash] = $this->mapNodeRowToNode(
                         $nodeRow,
                         $occupiedDimensionSpacePoint->toDimensionSpacePoint(),
-                        $visibilityConstraints
+                        $visibilityConstraints,
+                        null // todo
                     );
                 $occupiedDimensionSpacePointsByNodeAggregate[$rawNodeAggregateId][]
                     = $occupiedDimensionSpacePoint;

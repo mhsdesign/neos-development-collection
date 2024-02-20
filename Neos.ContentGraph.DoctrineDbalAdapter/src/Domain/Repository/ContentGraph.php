@@ -35,11 +35,13 @@ use Neos\ContentRepository\Core\Projection\ContentGraph\Filter\FindRootNodeAggre
 use Neos\ContentRepository\Core\Projection\ContentGraph\NodeAggregate;
 use Neos\ContentRepository\Core\Projection\ContentGraph\NodeAggregates;
 use Neos\ContentRepository\Core\Projection\ContentGraph\VisibilityConstraints;
+use Neos\ContentRepository\Core\Projection\Workspace\Workspace;
 use Neos\ContentRepository\Core\SharedModel\Exception\RootNodeAggregateDoesNotExist;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateClassification;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeAggregateId;
 use Neos\ContentRepository\Core\SharedModel\Node\NodeName;
 use Neos\ContentRepository\Core\SharedModel\Workspace\ContentStreamId;
+use Neos\ContentRepository\Core\SharedModel\Workspace\DetachedWorkspaceName;
 
 /**
  * The Doctrine DBAL adapter content graph
@@ -76,16 +78,20 @@ final class ContentGraph implements ContentGraphInterface
     }
 
     final public function getSubgraph(
-        ContentStreamId $contentStreamId,
+        ContentStreamId|Workspace $contentStreamReference,
         DimensionSpacePoint $dimensionSpacePoint,
         VisibilityConstraints $visibilityConstraints
     ): ContentSubgraphInterface {
+        $contentStreamId = $contentStreamReference instanceof Workspace ? $contentStreamReference->currentContentStreamId : $contentStreamReference;
         $index = $contentStreamId->value . '-' . $dimensionSpacePoint->hash . '-' . $visibilityConstraints->getHash();
         if (!isset($this->subgraphs[$index])) {
             $this->subgraphs[$index] = new ContentSubgraphWithRuntimeCaches(
                 new ContentSubgraph(
                     $this->contentRepositoryId,
                     $contentStreamId,
+                    $contentStreamReference instanceof Workspace
+                        ? $contentStreamReference->workspaceName
+                        : null,
                     $dimensionSpacePoint,
                     $visibilityConstraints,
                     $this->client,
@@ -96,6 +102,7 @@ final class ContentGraph implements ContentGraphInterface
             );
         }
 
+        // todo how to add current workspace name to this cached subgraph?
         return $this->subgraphs[$index];
     }
 

@@ -50,6 +50,7 @@ use Neos\ContentRepository\Core\NodeType\NodeTypeName;
  */
 final class NodeAggregate
 {
+    // todo add workspace name?
     public function __construct(
         public readonly ContentStreamId $contentStreamId,
         public readonly NodeAggregateId $nodeAggregateId,
